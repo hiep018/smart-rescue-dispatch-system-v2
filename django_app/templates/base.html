@@ -1,0 +1,127 @@
+{% load static %}
+<!DOCTYPE html>
+<html class="dark" lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>{% block title %}OpenCV AI Portal{% endblock %}</title>
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#2b6cee",
+                        "primary-glow": "#4d8aff",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#0b0e14",
+                        "glass-border": "rgba(255, 255, 255, 0.1)",
+                        "glass-surface": "rgba(255, 255, 255, 0.03)",
+                        "success": "#22c55e",
+                        "warning": "#f59e0b",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "2xl": "2rem",
+                        "full": "9999px"
+                    },
+                    animation: {
+                        'blob': 'blob 10s infinite',
+                        'pulse-slow': 'pulse 3s ease-in-out infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                        'scan-line': 'scanLine 2s linear infinite',
+                        'shimmer': 'shimmer 2s linear infinite',
+                        'glow': 'glow 2s ease-in-out infinite alternate',
+                    },
+                    keyframes: {
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        },
+                        scanLine: {
+                            '0%': { top: '0%' },
+                            '100%': { top: '100%' },
+                        },
+                        shimmer: {
+                            '0%': { backgroundPosition: '-200% 0' },
+                            '100%': { backgroundPosition: '200% 0' },
+                        },
+                        glow: {
+                            '0%': { boxShadow: '0 0 5px rgba(43, 108, 238, 0.5), 0 0 20px rgba(43, 108, 238, 0.3)' },
+                            '100%': { boxShadow: '0 0 20px rgba(43, 108, 238, 0.8), 0 0 40px rgba(43, 108, 238, 0.5)' },
+                        },
+                    }
+                },
+            },
+        }
+    </script>
+
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body class="bg-background-dark text-white font-display relative min-h-screen flex flex-col selection:bg-primary selection:text-white overflow-x-hidden">
+
+    <nav class="sticky top-0 z-[100] w-full border-b border-glass-border" style="background: rgba(11, 14, 20, 0.7); backdrop-filter: blur(12px);">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex-shrink-0 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-3xl">local_hospital</span>
+                    <span class="font-bold text-lg tracking-wide text-white">RESCUE<span class="text-primary">AI</span></span>
+                </div>
+
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-6">
+                        <a href="{% url 'portal:home' %}" class="flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-glass-surface transition-colors">
+                            <span class="material-symbols-outlined text-[18px]">home</span> Trang chủ
+                        </a>
+                        <a href="{% url 'portal:rescue_map' %}" class="flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-glass-surface transition-colors">
+                            <span class="material-symbols-outlined text-[18px]">map</span> Bản đồ Cứu hộ
+                        </a>
+                        <a href="{% url 'portal:first_aid_page' %}" class="flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors">
+                            <span class="material-symbols-outlined text-[18px]">medical_information</span> Trợ lý Sơ cứu
+                        </a>
+                        <a href="{% url 'portal:admin_dashboard' %}" class="flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-glass-surface transition-colors">
+                            <span class="material-symbols-outlined text-[18px]">dashboard</span> Quản trị viên
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <main class="flex-grow flex flex-col relative z-10">
+        {% block content %}{% endblock %}
+    </main>
+
+    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[110] transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="glass-card rounded-xl px-6 py-4 flex items-center gap-3 shadow-2xl" style="background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1);">
+            <span id="toastIcon" class="material-symbols-outlined text-green-400">check_circle</span>
+            <span id="toastMessage" class="font-medium text-white">Success!</span>
+        </div>
+    </div>
+
+    <div class="absolute inset-0 pointer-events-none z-0 opacity-[0.03]" style="background-image: linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px); background-size: 40px 40px;"></div>
+
+    <script src="{% static 'js/main.js' %}"></script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

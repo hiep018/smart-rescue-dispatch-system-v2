@@ -1,0 +1,238 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Trợ lý Sơ cứu AI — Khẩn cấp{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Tùy chỉnh riêng cho trang Sơ cứu */
+  .fa-container {
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 30px;
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+  }
+  .fa-title {
+    color: #f87171;
+    font-size: 28px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .fa-subtitle {
+    color: #94a3b8;
+    font-size: 15px;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .fa-label {
+    display: block;
+    color: #cbd5e1;
+    font-weight: 600;
+    margin-bottom: 10px;
+    font-size: 15px;
+  }
+
+  /* Đã sửa lỗi chữ đen bằng !important */
+  .fa-input {
+    width: 100%;
+    padding: 14px 18px;
+    background: rgba(15, 23, 42, 0.6) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-radius: 10px;
+    color: #ffffff !important; /* Ép chữ gõ vào thành màu trắng */
+    font-size: 16px;
+    margin-bottom: 25px;
+    transition: all 0.3s;
+  }
+
+  /* Đổi luôn màu chữ mờ (placeholder) cho dễ nhìn */
+  .fa-input::placeholder {
+    color: #94a3b8 !important;
+  }
+
+  .fa-input:focus {
+    outline: none !important;
+    border-color: #f87171 !important;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.2) !important;
+  }
+
+  .fa-file-input {
+    width: 100%;
+    padding: 12px;
+    background: rgba(15, 23, 42, 0.6) !important;
+    border: 2px dashed rgba(255, 255, 255, 0.2) !important;
+    border-radius: 10px;
+    color: #ffffff !important; /* Ép chữ tên file thành màu trắng */
+    cursor: pointer;
+    margin-bottom: 30px;
+  }
+
+  .fa-btn {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .fa-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
+  }
+  .fa-btn:disabled {
+    background: #475569;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fa-container">
+  <div class="fa-title">
+    <span class="material-symbols-outlined" style="font-size: 36px;">medical_services</span>
+    Trợ Lý Sơ Cứu Khẩn Cấp AI
+  </div>
+  <div class="fa-subtitle">
+    Hệ thống phân tích thông minh sử dụng OpenCV và CSDL Y tế để đưa ra phác đồ sơ cứu chuẩn xác lập tức.
+  </div>
+
+  <div>
+    <label class="fa-label">1. Nhập triệu chứng hoặc sự cố:</label>
+    <input type="text" id="fa-text" class="fa-input" placeholder="VD: Gãy tay, cầm máu, bỏng nước sôi..." />
+
+    <label class="fa-label">2. Hoặc tải ảnh chụp vết thương (AI sẽ quét vùng màu máu):</label>
+    <input type="file" id="fa-image" class="fa-file-input" accept="image/*" />
+
+    <button id="fa-btn" class="fa-btn" onclick="executeFirstAid()">
+      <span class="material-symbols-outlined">troubleshoot</span>
+      PHÂN TÍCH & TÌM KIẾM HƯỚNG DẪN
+    </button>
+  </div>
+
+  <div id="fa-result-area" style="display: none; margin-top: 40px; border-top: 2px dashed rgba(255,255,255,0.1); padding-top: 30px;">
+
+    <div id="fa-success-box" style="display: none;">
+      <h2 id="fa-res-title" style="color: #4ade80; font-size: 22px; margin-bottom: 20px; font-weight: bold; display: flex; align-items: center; gap: 8px;">
+        <span class="material-symbols-outlined">check_circle</span>
+      </h2>
+
+      <div style="background: rgba(0,0,0,0.2); padding: 25px; border-radius: 12px; border: 1px solid rgba(74, 222, 128, 0.2);">
+        <h3 style="color: #f1f5f9; font-size: 16px; margin-bottom: 15px;">CÁC BƯỚC THỰC HIỆN:</h3>
+        <ol id="fa-res-steps" style="color: #cbd5e1; line-height: 1.8; font-size: 16px; padding-left: 20px; margin-bottom: 25px;"></ol>
+
+        <div style="text-align: center; background: #0f172a; padding: 15px; border-radius: 8px;">
+          <span style="display: block; color: #94a3b8; font-size: 14px; margin-bottom: 10px;">Ảnh minh họa trực quan:</span>
+          <img id="fa-res-img" src="" style="max-width: 100%; border-radius: 8px; display: none; margin: 0 auto;" />
+          <span id="fa-res-noimg" style="color: #64748b; font-style: italic;">Không có ảnh minh họa</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="fa-error-box" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 15px; border-radius: 8px; text-align: center;">
+    </div>
+
+  </div>
+</div>
+
+<script>
+async function executeFirstAid() {
+  const textInput = document.getElementById('fa-text').value.trim();
+  const fileInput = document.getElementById('fa-image').files[0];
+  const btn = document.getElementById('fa-btn');
+  const resultArea = document.getElementById('fa-result-area');
+  const successBox = document.getElementById('fa-success-box');
+  const errorBox = document.getElementById('fa-error-box');
+
+  if (!textInput && !fileInput) {
+    alert("Vui lòng nhập văn bản hoặc tải ảnh lên!");
+    return;
+  }
+
+  // Đổi trạng thái UI sang Loading
+  btn.disabled = true;
+  btn.innerHTML = `<span class="material-symbols-outlined animate-spin">progress_activity</span> ĐANG PHÂN TÍCH...`;
+  resultArea.style.display = 'block';
+  successBox.style.display = 'none';
+  errorBox.style.display = 'none';
+
+  let formData = new FormData();
+  if (textInput) formData.append('query', textInput);
+  if (fileInput) formData.append('image', fileInput);
+
+  try {
+    const res = await fetch('/api/first-aid-assistant/', {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success || data.results.length === 0) {
+      throw new Error(data.error || "Không tìm thấy hướng dẫn phù hợp. Hãy thử từ khóa khác!");
+    }
+
+    // Nạp dữ liệu vào UI
+    const guide = data.results[0];
+    document.getElementById('fa-res-title').innerHTML = `<span class="material-symbols-outlined">check_circle</span> Phác đồ: ${guide.title}`;
+
+    const stepsList = document.getElementById('fa-res-steps');
+    stepsList.innerHTML = "";
+    guide.steps.forEach(step => {
+      let li = document.createElement('li');
+      li.style.marginBottom = "12px";
+      if (step.startsWith("🚨")) {
+        li.style.color = "#fca5a5";
+        li.style.fontWeight = "bold";
+        li.style.background = "rgba(239, 68, 68, 0.15)";
+        li.style.padding = "12px 16px";
+        li.style.borderRadius = "8px";
+        li.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+        li.style.listStyleType = "none";
+        li.style.marginLeft = "-20px";
+      }
+      li.innerText = step;
+      stepsList.appendChild(li);
+    });
+
+    const imgTag = document.getElementById('fa-res-img');
+    const noImgText = document.getElementById('fa-res-noimg');
+    if (guide.image_url) {
+      imgTag.src = guide.image_url;
+      imgTag.style.display = 'block';
+      noImgText.style.display = 'none';
+    } else {
+      imgTag.style.display = 'none';
+      noImgText.style.display = 'inline';
+    }
+
+    successBox.style.display = 'block';
+
+  } catch (err) {
+    errorBox.innerText = "⚠️ " + err.message;
+    errorBox.style.display = 'block';
+  } finally {
+    // Khôi phục nút bấm
+    btn.disabled = false;
+    btn.innerHTML = `<span class="material-symbols-outlined">troubleshoot</span> PHÂN TÍCH & TÌM KIẾM HƯỚNG DẪN`;
+  }
+}
+</script>
+{% endblock %}

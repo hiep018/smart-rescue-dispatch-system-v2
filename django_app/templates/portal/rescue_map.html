@@ -1,0 +1,952 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Bản đồ điều phối cứu hộ — A*{% endblock %}
+
+{% block content %}
+
+{# ─── URL endpoints ─── #}
+<script>
+  const URL_MAP_DATA = "{% url 'portal:api_custom_map_data' %}";
+  const URL_DISPATCH = (id) =>
+    `/api/rescue/requests/${id}/dispatch/`;
+  const URL_STATUS   = (id) =>
+    `/api/rescue/requests/${id}/status/`;
+</script>
+
+{# ─── Leaflet CSS ─── #}
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+
+<style>
+  /* ── Layout ── */
+  html, body { height: 100%; margin: 0; }
+
+  #map-container {
+    display: flex;
+    height: calc(100vh - 64px);   /* trừ header */
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: 360px;
+    min-width: 280px;
+    background: rgba(15, 15, 25, 0.95);
+    border-right: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 10;
+  }
+
+  #sidebar-header {
+    padding: 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    flex-shrink: 0;
+  }
+
+  #sidebar-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+  }
+
+  #sidebar-body::-webkit-scrollbar { width: 4px; }
+  #sidebar-body::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.15);
+    border-radius: 2px;
+  }
+
+  /* ── Map ── */
+  #map {
+    height: 100%;
+    width: 100%;
+    z-index: 1;
+  }
+
+  /* ── Report cards ── */
+  .report-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+  }
+  .report-card:hover {
+    border-color: rgba(239,68,68,0.4);
+    background: rgba(255,255,255,0.07);
+  }
+  .report-card.active {
+    border-color: rgba(239,68,68,0.7);
+    background: rgba(239,68,68,0.08);
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-pending  { background: rgba(234,179,8,.15);  color: #fbbf24; }
+  .badge-assigned { background: rgba(59,130,246,.15); color: #60a5fa; }
+  .badge-on_the_way { background: rgba(16,185,129,.15); color: #34d399; }
+
+  .badge-critical { background: rgba(239,68,68,.2);  color: #f87171; }
+  .badge-high     { background: rgba(249,115,22,.2); color: #fb923c; }
+  .badge-medium   { background: rgba(234,179,8,.15); color: #fbbf24; }
+  .badge-low      { background: rgba(148,163,184,.15); color: #94a3b8; }
+
+  /* ── Dispatch panel ── */
+  #dispatch-panel {
+    position: absolute;
+    bottom: 24px;
+    right: 16px;
+    width: 340px;
+    background: rgba(10,10,20,0.95);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 16px;
+    z-index: 500;
+    display: none;
+    backdrop-filter: blur(12px);
+  }
+  #dispatch-panel.show { display: block; }
+
+  /* ── A* info box ── */
+  #astar-info {
+    background: rgba(59,130,246,0.08);
+    border: 1px solid rgba(59,130,246,0.25);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #93c5fd;
+    display: none;
+  }
+  #astar-info.show { display: block; }
+  #astar-info .astar-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  #astar-info .astar-label { color: #64748b; }
+  #astar-info .astar-value { font-family: monospace; color: #93c5fd; }
+
+  /* ── Station marker legend ── */
+  .station-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 2px solid;
+    display: inline-block;
+    margin-right: 4px;
+  }
+  .dot-available { background:#22c55e; border-color:#16a34a; }
+  .dot-busy      { background:#f97316; border-color:#ea580c; }
+  .dot-inactive  { background:#64748b; border-color:#475569; }
+
+  /* ── Leaflet custom icons ── */
+  .victim-icon-div {
+    width: 28px; height: 28px;
+    background: #ef4444;
+    border: 3px solid #fff;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    box-shadow: 0 2px 8px rgba(239,68,68,.6);
+  }
+  .station-icon-div {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    display: flex; align-items:center; justify-content:center;
+    font-size: 11px; font-weight: 700; color: #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,.4);
+  }
+
+  /* ── Buttons ── */
+  .btn-dispatch {
+    width: 100%;
+    padding: 10px;
+    background: #ef4444;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 10px;
+    transition: background .2s;
+  }
+  .btn-dispatch:hover   { background: #dc2626; }
+  .btn-dispatch:disabled { background: #374151; cursor: default; }
+
+  .btn-status {
+    width: 100%;
+    padding: 8px;
+    background: transparent;
+    color: #94a3b8;
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    margin-top: 6px;
+    transition: border-color .2s;
+  }
+  .btn-status:hover { border-color: rgba(255,255,255,.3); color: #e2e8f0; }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity .3s;
+    pointer-events: none;
+  }
+  #toast.show { opacity: 1; }
+  #toast.success { background:#065f46; color:#6ee7b7; border:1px solid #059669; }
+  #toast.error   { background:#7f1d1d; color:#fca5a5; border:1px solid #dc2626; }
+  #toast.info    { background:#1e3a5f; color:#93c5fd; border:1px solid #3b82f6; }
+
+  /* ── Legend ── */
+  #map-legend {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: rgba(10,10,20,0.88);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 10px;
+    padding: 10px 14px;
+    z-index: 400;
+    font-size: 12px;
+    color: #94a3b8;
+    backdrop-filter: blur(8px);
+  }
+  #map-legend .legend-title {
+    font-size: 11px; font-weight: 700;
+    color: #e2e8f0; text-transform: uppercase;
+    letter-spacing: .05em; margin-bottom: 8px;
+  }
+  #map-legend .legend-row {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+  }
+
+  /* ── Loading overlay ── */
+  #loading-overlay {
+    position: absolute; inset: 0;
+    background: rgba(5,5,15,.7);
+    display: flex; align-items:center; justify-content:center;
+    z-index: 999; backdrop-filter: blur(4px);
+  }
+  #loading-overlay.hidden { display: none; }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid rgba(255,255,255,.1);
+    border-top-color: #ef4444;
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    #sidebar { width: 100%; height: 45vh; }
+    #map-container { flex-direction: column; }
+    #dispatch-panel { width: calc(100% - 32px); }
+  }
+</style>
+
+
+{# ─── Header ─── #}
+<header class="relative z-50 flex items-center justify-between
+               px-6 py-3 bg-gray-950 border-b border-white/10 h-16">
+
+  <a href="{% url 'portal:home' %}"
+     class="flex items-center gap-2 text-sm text-slate-400
+            hover:text-white transition-colors">
+    <span class="material-symbols-outlined text-base">arrow_back</span>
+    Trang chủ
+  </a>
+
+  <div class="flex items-center gap-3">
+    <span class="text-xs px-3 py-1 rounded-full
+                 bg-blue-500/10 text-blue-400 border border-blue-500/20">
+      Thuật toán A* &mdash; OpenStreetMap
+    </span>
+
+    <button onclick="loadMapData()"
+            class="text-xs px-3 py-1 rounded-full
+                   bg-white/5 text-slate-400
+                   border border-white/10 hover:border-white/30
+                   transition-colors">
+      <span class="material-symbols-outlined text-sm align-middle">refresh</span>
+      Làm mới
+    </button>
+
+    <a href="{% url 'portal:admin_dashboard' %}"
+       class="text-xs px-3 py-1 rounded-full
+              bg-red-500/10 text-red-400
+              border border-red-500/20 hover:border-red-500/40
+              transition-colors">
+      Dashboard
+    </a>
+  </div>
+</header>
+
+
+{# ─── Body ─── #}
+<div id="map-container">
+
+  {# ── Sidebar ── #}
+  <div id="sidebar">
+
+    <div id="sidebar-header">
+      <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">
+        Yêu cầu cứu hộ đang chờ
+      </p>
+      <div class="flex items-center gap-3">
+        <span id="pending-count"
+              class="text-2xl font-bold text-red-400">—</span>
+        <span class="text-slate-500 text-sm">đang hoạt động</span>
+      </div>
+
+      {# Stats mini #}
+      <div class="grid grid-cols-3 gap-2 mt-3">
+        <div class="text-center p-2 rounded-lg bg-white/5">
+          <p class="text-lg font-bold text-green-400" id="stat-available">—</p>
+          <p class="text-xs text-slate-500">Trạm sẵn</p>
+        </div>
+        <div class="text-center p-2 rounded-lg bg-white/5">
+          <p class="text-lg font-bold text-orange-400" id="stat-busy">—</p>
+          <p class="text-xs text-slate-500">Đang cứu</p>
+        </div>
+        <div class="text-center p-2 rounded-lg bg-white/5">
+          <p class="text-lg font-bold text-blue-400" id="stat-total">—</p>
+          <p class="text-xs text-slate-500">Tổng trạm</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="sidebar-body">
+      <div id="report-list">
+        <p class="text-slate-500 text-sm text-center py-8">
+          Đang tải dữ liệu…
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  {# ── Map wrapper ── #}
+  <div style="flex:1;position:relative;">
+
+    {# Loading overlay #}
+    <div id="loading-overlay">
+      <div class="text-center">
+        <div class="spinner mx-auto mb-3"></div>
+        <p class="text-slate-400 text-sm">Đang tải bản đồ…</p>
+      </div>
+    </div>
+
+    {# Map #}
+    <div id="map"></div>
+
+    {# Legend #}
+    <div id="map-legend">
+      <div class="legend-title">Chú giải</div>
+      <div class="legend-row">
+        <span class="station-dot dot-available"></span> Trạm sẵn sàng
+      </div>
+      <div class="legend-row">
+        <span class="station-dot dot-busy"></span> Trạm đang bận
+      </div>
+      <div class="legend-row">
+        <span class="station-dot dot-inactive"></span> Tạm ngừng
+      </div>
+      <div class="legend-row" style="margin-top:6px">
+        <span style="display:inline-block;width:12px;height:12px;
+                     background:#ef4444;border-radius:50%;
+                     margin-right:4px;"></span>
+        Hiện trường
+      </div>
+      <div class="legend-row">
+        <span style="display:inline-block;width:20px;height:3px;
+                     background:#3b82f6;margin-right:4px;"></span>
+        Tuyến A*
+      </div>
+    </div>
+
+    {# Dispatch panel #}
+    <div id="dispatch-panel">
+      <div class="flex items-start justify-between mb-2">
+        <div>
+          <p class="text-xs text-slate-500 uppercase tracking-wider">
+            Yêu cầu đã chọn
+          </p>
+          <p id="dp-title" class="text-white font-semibold mt-0.5 text-sm">—</p>
+        </div>
+        <button onclick="closeDispatchPanel()"
+                class="text-slate-600 hover:text-white text-lg leading-none ml-4">
+          ✕
+        </button>
+      </div>
+
+      <div class="text-xs text-slate-500 space-y-1 mb-2">
+        <div>
+          <span class="text-slate-400">Tọa độ: </span>
+          <span id="dp-coords" class="font-mono text-slate-300">—</span>
+        </div>
+        <div>
+          <span class="text-slate-400">Địa chỉ: </span>
+          <span id="dp-address">—</span>
+        </div>
+        <div>
+          <span class="text-slate-400">Mức độ: </span>
+          <span id="dp-level">—</span>
+        </div>
+        <div>
+          <span class="text-slate-400">Trạng thái: </span>
+          <span id="dp-status">—</span>
+        </div>
+      </div>
+
+      {# A* result info #}
+      <div id="astar-info">
+        <div class="font-semibold text-blue-300 mb-6px" style="margin-bottom:6px">
+          Kết quả A* — Trạm được chọn
+        </div>
+        <div class="astar-row">
+          <span class="astar-label">Trạm:</span>
+          <span class="astar-value" id="ai-station">—</span>
+        </div>
+        <div class="astar-row">
+          <span class="astar-label">g(n) đường bộ:</span>
+          <span class="astar-value" id="ai-g">—</span>
+        </div>
+        <div class="astar-row">
+          <span class="astar-label">h(n) chim bay:</span>
+          <span class="astar-value" id="ai-h">—</span>
+        </div>
+        <div class="astar-row">
+          <span class="astar-label">f(n) = g+h:</span>
+          <span class="astar-value" id="ai-f">—</span>
+        </div>
+        <div class="astar-row">
+          <span class="astar-label">Thời gian:</span>
+          <span class="astar-value" id="ai-time">—</span>
+        </div>
+      </div>
+
+      <button id="btn-dispatch"
+              class="btn-dispatch"
+              onclick="dispatchSelected()">
+        <span class="material-symbols-outlined text-sm align-middle">
+          emergency_share
+        </span>
+        Điều phối A* ngay
+      </button>
+
+      <select id="status-select"
+              class="w-full mt-2 px-3 py-2 rounded-lg text-sm
+                     bg-white border border-slate-300
+                     text-black focus:outline-none
+                     focus:border-slate-500">
+        <option value="" class="text-black bg-white">— Cập nhật trạng thái thủ công —</option>
+        <option value="pending" class="text-black bg-white">Đang chờ tiếp nhận</option>
+        <option value="assigned" class="text-black bg-white">Đã phân công</option>
+        <option value="on_the_way" class="text-black bg-white">Đang trên đường</option>
+        <option value="completed" class="text-black bg-white">Đã hoàn thành</option>
+        <option value="cancelled" class="text-black bg-white">Đã hủy</option>
+      </select>
+
+      <button class="btn-status" onclick="updateStatus()">
+        Lưu trạng thái
+      </button>
+    </div>
+
+  </div>
+</div>
+
+{# ─── Toast ─── #}
+<div id="toast"></div>
+
+
+{# ─── Leaflet JS ─── #}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+// ══════════════════════════════════════════════════
+// KHỞI TẠO BẢN ĐỒ LEAFLET + OPENSTREETMAP
+// ══════════════════════════════════════════════════
+
+// Trung tâm TP.HCM
+const HCM_CENTER = [10.7769, 106.7009];
+
+// Giới hạn bản đồ trong phạm vi TP.HCM
+const HCMC_BOUNDS = L.latLngBounds(
+  L.latLng(10.35, 106.35), // Góc Tây Nam (Cần Giờ/Nhà Bè/Bình Chánh)
+  L.latLng(11.15, 107.05)  // Góc Đông Bắc (Củ Chi/Thủ Đức)
+);
+
+const map = L.map('map', {
+  center: HCM_CENTER,
+  zoom: 12,
+  minZoom: 10,
+  maxBounds: HCMC_BOUNDS,
+  maxBoundsViscosity: 1.0, // Ngăn chặn hoàn toàn việc kéo ra ngoài phạm vi
+  zoomControl: true,
+});
+
+// OpenStreetMap tile — hợp lệ với lãnh thổ Việt Nam
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution:
+    '&copy; <a href="https://www.openstreetmap.org/copyright">'
+    + 'OpenStreetMap</a> contributors',
+}).addTo(map);
+
+// ══════════════════════════════════════════════════
+// TRẠNG THÁI
+// ══════════════════════════════════════════════════
+
+let stationMarkers = [];
+let reportMarkers  = [];
+let routeLayers    = [];   // Tuyến A* đang hiển thị
+let selectedReport = null;
+let allReports     = [];
+let allStations    = [];
+
+// ══════════════════════════════════════════════════
+// CUSTOM ICONS
+// ══════════════════════════════════════════════════
+
+function stationIcon(status) {
+  const colors = {
+    available: { bg: '#22c55e', border: '#16a34a' },
+    busy:      { bg: '#f97316', border: '#ea580c' },
+    inactive:  { bg: '#64748b', border: '#475569' },
+  };
+  const c = colors[status] || colors.inactive;
+  return L.divIcon({
+    className: '',
+    html: `<div class="station-icon-div"
+                style="background:${c.bg};border-color:${c.border}">
+             S
+           </div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -14],
+  });
+}
+
+function victimIcon(level) {
+  const glow = {
+    critical: 'rgba(239,68,68,.8)',
+    high:     'rgba(249,115,22,.7)',
+    medium:   'rgba(234,179,8,.6)',
+    low:      'rgba(148,163,184,.5)',
+  };
+  return L.divIcon({
+    className: '',
+    html: `<div class="victim-icon-div"
+                style="box-shadow:0 2px 12px ${glow[level]||glow.medium}">
+           </div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 28],
+    popupAnchor: [0, -30],
+  });
+}
+
+// ══════════════════════════════════════════════════
+// TẢI DỮ LIỆU BẢN ĐỒ
+// ══════════════════════════════════════════════════
+
+async function loadMapData() {
+  document.getElementById('loading-overlay').classList.remove('hidden');
+
+  try {
+    const res  = await fetch(URL_MAP_DATA);
+    const data = await res.json();
+
+    if (!data.success) throw new Error(data.error || 'Lỗi API');
+
+    allStations = data.data.stations;
+    allReports  = data.data.active_reports;
+
+    renderStations(allStations);
+    renderReports(allReports);
+    renderSidebar(allReports, allStations);
+
+  } catch (err) {
+    showToast('Không thể tải dữ liệu bản đồ: ' + err.message, 'error');
+  } finally {
+    document.getElementById('loading-overlay').classList.add('hidden');
+  }
+}
+
+// ── Vẽ markers trạm cứu hộ ──
+function renderStations(stations) {
+  stationMarkers.forEach(m => map.removeLayer(m));
+  stationMarkers = [];
+
+  let available = 0, busy = 0;
+
+  stations.forEach(s => {
+    if (s.status === 'available') available++;
+    if (s.status === 'busy')      busy++;
+
+    const marker = L.marker([s.latitude, s.longitude], {
+      icon: stationIcon(s.status),
+      zIndexOffset: 100,
+    }).addTo(map);
+
+    marker.bindPopup(`
+      <div style="min-width:200px;font-family:sans-serif">
+        <p style="font-weight:700;font-size:14px;margin:0 0 4px">
+          ${s.station_code} — ${s.name}
+        </p>
+        <p style="font-size:12px;color:#666;margin:2px 0">
+          📍 ${s.address || 'Chưa cập nhật'}
+        </p>
+        <p style="font-size:12px;color:#666;margin:2px 0">
+          📞 ${s.phone || 'Chưa cập nhật'}
+        </p>
+        <p style="font-size:12px;margin:4px 0">
+          Trạng thái: <strong>${s.status_display}</strong>
+        </p>
+        <p style="font-size:12px;margin:2px 0">
+          Phương tiện: <strong>${s.vehicle_count}</strong>
+        </p>
+        <p style="font-size:11px;color:#999;margin-top:6px">
+          ${s.latitude.toFixed(5)}°N, ${s.longitude.toFixed(5)}°E
+        </p>
+      </div>
+    `);
+
+    stationMarkers.push(marker);
+  });
+
+  document.getElementById('stat-available').textContent = available;
+  document.getElementById('stat-busy').textContent      = busy;
+  document.getElementById('stat-total').textContent     = stations.length;
+}
+
+// ── Vẽ markers yêu cầu cứu hộ ──
+function renderReports(reports) {
+  reportMarkers.forEach(m => map.removeLayer(m));
+  routeLayers.forEach(l => map.removeLayer(l));
+  reportMarkers = [];
+  routeLayers   = [];
+
+  reports.forEach(r => {
+    const marker = L.marker([r.latitude, r.longitude], {
+      icon: victimIcon(r.emergency_level),
+    }).addTo(map);
+
+    marker.bindPopup(`
+      <div style="min-width:200px;font-family:sans-serif">
+        <p style="font-weight:700;font-size:14px;margin:0 0 4px">
+          🚨 #${r.id} — ${r.victim_name}
+        </p>
+        <p style="font-size:12px;color:#666;margin:2px 0">
+          📞 ${r.phone || '—'}
+        </p>
+        <p style="font-size:12px;margin:2px 0">
+          Mức độ: <strong>${r.emergency_level_display}</strong>
+        </p>
+        <p style="font-size:12px;margin:2px 0">
+          Trạng thái: <strong>${r.status_display}</strong>
+        </p>
+        ${r.assigned_station ? `
+        <p style="font-size:12px;margin:2px 0;color:#2563eb">
+          Trạm: ${r.assigned_station.name}
+        </p>` : ''}
+        <hr style="margin:8px 0;border-color:#eee"/>
+        <button onclick="selectReport(${r.id})"
+          style="width:100%;padding:6px;background:#ef4444;
+                 color:#fff;border:none;border-radius:6px;
+                 cursor:pointer;font-size:12px;font-weight:600">
+          Chọn để điều phối
+        </button>
+      </div>
+    `);
+
+    marker.on('click', () => selectReport(r.id));
+    reportMarkers.push(marker);
+
+    // Vẽ tuyến đường nếu đã điều phối
+    if (r.route_geojson && r.assigned_station) {
+      drawRoute(r.route_geojson, r.id);
+    }
+  });
+}
+
+// ── Vẽ tuyến đường GeoJSON lên bản đồ ──
+function drawRoute(geometry, reportId) {
+  if (!geometry) return null;
+
+  // Xử lý linh hoạt cả đối tượng Feature và đối tượng Geometry
+  let geoJson;
+  if (geometry.type === 'Feature') {
+    geoJson = geometry;
+  } else {
+    geoJson = {
+      type: 'Feature',
+      geometry: geometry,
+      properties: {},
+    };
+  }
+
+  const layer = L.geoJSON(geoJson, {
+    style: {
+      color: '#3b82f6',
+      weight: 4,
+      opacity: 0.8,
+      dashArray: '8, 4',
+    },
+  }).addTo(map);
+
+  layer.bindTooltip(`Tuyến A* — Yêu cầu #${reportId}`, {
+    sticky: true,
+    className: 'route-tooltip',
+  });
+
+  routeLayers.push(layer);
+  return layer;
+}
+
+// ══════════════════════════════════════════════════
+// SIDEBAR — DANH SÁCH YÊU CẦU
+// ══════════════════════════════════════════════════
+
+function renderSidebar(reports, stations) {
+  document.getElementById('pending-count').textContent = reports.length;
+
+  const list = document.getElementById('report-list');
+
+  if (!reports.length) {
+    list.innerHTML = `
+      <div class="text-center py-10">
+        <p class="text-slate-500 text-sm">Không có yêu cầu đang hoạt động</p>
+        <p class="text-slate-600 text-xs mt-2">Hệ thống đang hoạt động bình thường</p>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = reports.map(r => `
+    <div class="report-card" id="card-${r.id}" onclick="selectReport(${r.id})">
+      <div class="flex items-start justify-between mb-1">
+        <span class="text-white font-semibold text-sm">#${r.id} — ${r.victim_name}</span>
+        <span class="badge badge-${r.emergency_level}">${r.emergency_level_display}</span>
+      </div>
+      <div class="flex items-center gap-2 mb-1">
+        <span class="badge badge-${r.status}">${r.status_display}</span>
+      </div>
+      <p class="text-slate-500 text-xs">${r.address || 'Chưa có địa chỉ'}</p>
+      ${r.assigned_station
+        ? `<p class="text-blue-400 text-xs mt-1">
+             → ${r.assigned_station.name}
+             ${r.algorithm ? `(${r.algorithm})` : ''}
+           </p>`
+        : '<p class="text-yellow-500 text-xs mt-1">Chưa phân công</p>'
+      }
+    </div>
+  `).join('');
+}
+
+// ══════════════════════════════════════════════════
+// CHỌN YÊU CẦU → MỞ DISPATCH PANEL
+// ══════════════════════════════════════════════════
+
+function selectReport(reportId) {
+  const report = allReports.find(r => r.id === reportId);
+  if (!report) return;
+
+  selectedReport = report;
+
+  // Highlight card
+  document.querySelectorAll('.report-card').forEach(c =>
+    c.classList.remove('active')
+  );
+  const card = document.getElementById(`card-${report.id}`);
+  if (card) card.classList.add('active');
+
+  // Pan bản đồ đến hiện trường
+  map.flyTo([report.latitude, report.longitude], 15, { duration: 1 });
+
+  // Điền thông tin vào dispatch panel
+  document.getElementById('dp-title').textContent =
+    `#${report.id} — ${report.victim_name}`;
+  document.getElementById('dp-coords').textContent =
+    `${report.latitude.toFixed(5)}, ${report.longitude.toFixed(5)}`;
+  document.getElementById('dp-address').textContent =
+    report.address || '—';
+  document.getElementById('dp-level').textContent =
+    report.emergency_level_display;
+  document.getElementById('dp-status').textContent =
+    report.status_display;
+
+  // Ẩn A* info cũ
+  document.getElementById('astar-info').classList.remove('show');
+
+  // Nút điều phối
+  const btnDispatch = document.getElementById('btn-dispatch');
+  if (report.status === 'completed' || report.status === 'cancelled') {
+    btnDispatch.disabled = true;
+    btnDispatch.textContent = 'Đã kết thúc';
+  } else {
+    btnDispatch.disabled = false;
+    btnDispatch.innerHTML = `
+      <span class="material-symbols-outlined text-sm align-middle">
+        emergency_share
+      </span>
+      Điều phối A* ngay
+    `;
+  }
+
+  document.getElementById('dispatch-panel').classList.add('show');
+}
+
+function closeDispatchPanel() {
+  document.getElementById('dispatch-panel').classList.remove('show');
+  selectedReport = null;
+}
+
+// ══════════════════════════════════════════════════
+// ĐIỀU PHỐI A*
+// ══════════════════════════════════════════════════
+
+async function dispatchSelected() {
+  if (!selectedReport) return;
+
+  const btn = document.getElementById('btn-dispatch');
+  btn.disabled = true;
+  btn.innerHTML = `
+    <span class="material-symbols-outlined animate-spin text-sm align-middle">
+      progress_activity
+    </span>
+    Đang chạy A*…
+  `;
+
+  try {
+    const res = await fetch(URL_DISPATCH(selectedReport.id), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+
+    if (!data.success) throw new Error(data.error || 'Điều phối thất bại');
+
+    const d  = data.data;
+    const ad = d.algorithm_detail;
+
+    // Hiển thị kết quả A*
+    document.getElementById('ai-station').textContent = d.station.name;
+    document.getElementById('ai-g').textContent =
+      `${ad.g_road_km} km (OSRM)`;
+    document.getElementById('ai-h').textContent =
+      `${ad.h_straight_km} km (Haversine)`;
+    document.getElementById('ai-f').textContent =
+      `${ad.f_total_km} km`;
+    document.getElementById('ai-time').textContent =
+      `~${d.estimated_time_minutes} phút`;
+    document.getElementById('astar-info').classList.add('show');
+
+    // Vẽ tuyến đường mới lên bản đồ
+    if (d.route_geojson) {
+      // Xóa tuyến cũ của report này
+      routeLayers.forEach(l => map.removeLayer(l));
+      routeLayers = [];
+
+      const newLayer = drawRoute(d.route_geojson, d.report_id);
+
+      // Fit bản đồ vào tuyến đường
+      map.fitBounds(newLayer.getBounds(), { padding: [40, 40] });
+    }
+
+    showToast(data.message, 'success');
+
+    // Kích hoạt lại nút điều phối
+    btn.disabled = false;
+    btn.innerHTML = `
+      <span class="material-symbols-outlined text-sm align-middle">
+        emergency_share
+      </span>
+      Điều phối A* ngay
+    `;
+
+    // Reload dữ liệu sau 1.5s
+    setTimeout(loadMapData, 1500);
+
+  } catch (err) {
+    showToast(err.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = `
+      <span class="material-symbols-outlined text-sm align-middle">
+        emergency_share
+      </span>
+      Thử lại
+    `;
+  }
+}
+
+// ══════════════════════════════════════════════════
+// CẬP NHẬT TRẠNG THÁI THỦ CÔNG
+// ══════════════════════════════════════════════════
+
+async function updateStatus() {
+  if (!selectedReport) return;
+  const newStatus = document.getElementById('status-select').value;
+  if (!newStatus) return;
+
+  try {
+    const res = await fetch(URL_STATUS(selectedReport.id), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+    showToast('Đã cập nhật trạng thái', 'success');
+    setTimeout(loadMapData, 800);
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════
+
+let toastTimer = null;
+
+function showToast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.classList.remove('show');
+  }, 4000);
+}
+
+// ══════════════════════════════════════════════════
+// AUTO REFRESH mỗi 30 giây
+// ══════════════════════════════════════════════════
+
+loadMapData();
+setInterval(loadMapData, 30000);
+</script>
+
+{% endblock %}
