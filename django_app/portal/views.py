@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 
 from django.db import transaction
-from django.db.models import Avg, Q
+from django.db.models import Avg, Q, Case, When, Value, IntegerField
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -241,7 +241,20 @@ def admin_dashboard(request):
     active_requests = VictimReport.objects.filter(status__in=['assigned', 'on_the_way']).count()
     completed_today = VictimReport.objects.filter(status='completed', updated_at__date=today).count()
 
-    recent_requests = VictimReport.objects.select_related('assigned_station').order_by('-created_at')[:20]
+    priority_order = Case(
+        When(emergency_level='critical', then=Value(4)),
+        When(emergency_level='high', then=Value(3)),
+        When(emergency_level='medium', then=Value(2)),
+        When(emergency_level='low', then=Value(1)),
+        default=Value(0),
+        output_field=IntegerField(),
+    )
+
+    recent_requests = VictimReport.objects.select_related('assigned_station').exclude(
+        status__in=['completed', 'cancelled']
+    ).annotate(
+        dispatch_priority=priority_order
+    ).order_by('-dispatch_priority', '-created_at')[:20]
     recent_logs = RescueLog.objects.select_related('report', 'station').order_by('-assigned_at')[:20]
     stations = RescueStation.objects.all().order_by('station_code')
 
@@ -577,11 +590,21 @@ def api_dispatch_rescue(request, report_id):
 @require_http_methods(['GET'])
 def api_rescue_requests(request):
     status_filter = request.GET.get('status')
-    reports = VictimReport.objects.select_related('assigned_station').all()
+    priority_order = Case(
+        When(emergency_level='critical', then=Value(4)),
+        When(emergency_level='high', then=Value(3)),
+        When(emergency_level='medium', then=Value(2)),
+        When(emergency_level='low', then=Value(1)),
+        default=Value(0),
+        output_field=IntegerField(),
+    )
+    reports = VictimReport.objects.select_related('assigned_station').annotate(
+        dispatch_priority=priority_order
+    )
 
     if status_filter:
         reports = reports.filter(status=status_filter)
-    reports = reports.order_by('-created_at')
+    reports = reports.order_by('-dispatch_priority', '-created_at')
 
     data = []
     for report in reports:

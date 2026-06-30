@@ -103,13 +103,6 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# =====================================================
-# OpenCV Plugin Configuration
-# =====================================================
-# Cấu hình URL cho plugin OpenCV - thay đổi theo nhu cầu
-OPENCV_PLUGIN_URL = '/scan/camera/'  # URL tới plugin OpenCV của anh
-ADMIN_DASHBOARD_URL = '/admin-dashboard/'
-REGISTER_FACE_URL = '/register/'
 
 WHAT3WORDS_API_KEY = os.environ.get(
     'WHAT3WORDS_API_KEY',
@@ -128,5 +121,5 @@ VIETMAP_API_KEY = os.environ.get(
 # AI Agent Configuration
 GEMINI_API_KEY = os.environ.get(
     'GEMINI_API_KEY',
-    '..'
+    '......'
 )
