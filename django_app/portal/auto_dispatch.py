@@ -260,18 +260,19 @@ def get_osrm_route(
     }
 
 
+from .astar_grid import astar_grid_distance
+
 # =====================================================
 # XẾP HẠNG CÁC TRẠM
 # =====================================================
 
 def rank_stations_for_report(report):
     """
-    Lấy các trạm còn xe rồi xếp hạng theo:
-
-    1. Thời gian di chuyển ngắn nhất.
-    2. Khoảng cách ngắn nhất.
-    3. Ít nhiệm vụ đang xử lý hơn.
-    4. Nhiều phương tiện còn trống hơn.
+    Xếp hạng các trạm cứu hộ:
+    1. Lọc các trạm còn xe.
+    2. Dùng A* trên lưới ô vuông để ước lượng khoảng cách nội bộ nhanh nhất.
+    3. Chọn Top 3 trạm gần nhất theo A* để gọi OSRM vẽ đường thực tế.
+    4. Xếp hạng cuối cùng theo thời gian di chuyển thực tế từ OSRM.
     """
 
     ranked_stations = []
@@ -284,6 +285,8 @@ def rank_stations_for_report(report):
         .order_by('station_code')
     )
 
+    # 1. Tính khoảng cách A* trên lưới cho tất cả các trạm khả dụng
+    astar_candidates = []
     for station in stations:
         capacity = get_station_capacity(station)
 
@@ -291,62 +294,63 @@ def rank_stations_for_report(report):
         if capacity['available_vehicles'] <= 0:
             sync_station_status(station)
             continue
+            
+        # Tính khoảng cách A* Grid
+        grid_dist, iterations = astar_grid_distance(
+            station.latitude, station.longitude,
+            report.latitude, report.longitude
+        )
+        
+        astar_candidates.append({
+            'station': station,
+            'grid_dist': grid_dist,
+            'capacity': capacity
+        })
+
+    # 2. Sắp xếp tạm theo khoảng cách A* Grid (ưu tiên trạm gần)
+    astar_candidates.sort(
+        key=lambda item: (
+            item['grid_dist'],
+            item['capacity']['active_count'],
+            -item['capacity']['available_vehicles'],
+        )
+    )
+
+    # 3. Gọi OSRM lấy đường bộ cho Top 3 trạm gần nhất theo A*
+    top_candidates = astar_candidates[:3]
+
+    for candidate in top_candidates:
+        station = candidate['station']
+        capacity = candidate['capacity']
 
         try:
             route = get_osrm_route(
-                start_latitude=
-                    station.latitude,
-
-                start_longitude=
-                    station.longitude,
-
-                end_latitude=
-                    report.latitude,
-
-                end_longitude=
-                    report.longitude,
+                start_latitude=station.latitude,
+                start_longitude=station.longitude,
+                end_latitude=report.latitude,
+                end_longitude=report.longitude,
             )
 
         except RuntimeError as error:
             route_errors.append({
-                'station_id':
-                    station.id,
-
-                'station_code':
-                    station.station_code,
-
-                'station_name':
-                    station.name,
-
-                'error':
-                    str(error),
+                'station_id': station.id,
+                'station_code': station.station_code,
+                'station_name': station.name,
+                'error': str(error),
             })
-
             continue
 
         ranked_stations.append({
-            'station':
-                station,
-
-            'distance_km':
-                route['distance_km'],
-
-            'duration_minutes':
-                route['duration_minutes'],
-
-            'geometry':
-                route['geometry'],
-
-            'vehicle_count':
-                capacity['vehicle_count'],
-
-            'active_count':
-                capacity['active_count'],
-
-            'available_vehicles':
-                capacity['available_vehicles'],
+            'station': station,
+            'distance_km': route['distance_km'],
+            'duration_minutes': route['duration_minutes'],
+            'geometry': route['geometry'],
+            'vehicle_count': capacity['vehicle_count'],
+            'active_count': capacity['active_count'],
+            'available_vehicles': capacity['available_vehicles'],
         })
 
+    # 4. Xếp hạng chính thức các trạm Top bằng thời gian thực tế của OSRM
     ranked_stations.sort(
         key=lambda item: (
             item['duration_minutes'],
@@ -710,16 +714,15 @@ def dispatch_report(report):
                         route_feature,
 
                     algorithm=
-                        'OSRM Auto Dispatch',
+                        'Grid A* + OSRM',
 
                     status=
                         'assigned',
 
                     notes=(
-                        'Hệ thống tự động chọn '
-                        'trạm còn phương tiện có '
-                        'thời gian di chuyển '
-                        'ngắn nhất.'
+                        'Sử dụng Grid A* để xếp hạng trạm gần nhất, '
+                        'sau đó gọi OSRM để lấy tuyến đường '
+                        'thực tế cho giao diện.'
                     ),
                 )
             )
