@@ -1,0 +1,989 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Canh Bao Bao & An Toan - He Thong Cuu Ho{% endblock %}
+
+{% block extra_css %}
+<style>
+  html,
+  body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  #storm-page {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    background: #080b14
+  }
+
+  #storm-header {
+    flex: 0 0 60px;
+    z-index: 200;
+    position: relative
+  }
+
+  #storm-body {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    overflow: hidden
+  }
+
+  #windy-panel {
+    flex: 1 1 65%;
+    position: relative;
+    min-width: 0;
+    background: #0a0d1a
+  }
+
+  #windy-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block
+  }
+
+  #windy-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #080b14;
+    z-index: 10;
+    gap: 16px;
+    transition: opacity 0.5s ease
+  }
+
+  #windy-loading.hidden {
+    opacity: 0;
+    pointer-events: none
+  }
+
+  .loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: #f97316;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg)
+    }
+  }
+
+  #windy-label {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 100;
+    background: rgba(8, 11, 20, .88);
+    border: 1px solid rgba(249, 115, 22, .4);
+    border-radius: 10px;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    backdrop-filter: blur(10px);
+    font-size: 12px;
+    font-weight: 700;
+    color: #fb923c;
+    font-family: 'Space Grotesk', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: .06em
+  }
+
+  #windy-layers {
+    position: absolute;
+    bottom: 16px;
+    left: 12px;
+    z-index: 100;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    max-width: 380px
+  }
+
+  .layer-btn {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, .15);
+    background: rgba(8, 11, 20, .88);
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s;
+    font-family: 'Space Grotesk', sans-serif;
+    backdrop-filter: blur(8px)
+  }
+
+  .layer-btn:hover {
+    background: rgba(255, 255, 255, .1);
+    color: #e2e8f0
+  }
+
+  .layer-btn.active {
+    background: rgba(249, 115, 22, .2);
+    border-color: rgba(249, 115, 22, .5);
+    color: #fb923c
+  }
+
+  #info-panel {
+    flex: 0 0 380px;
+    min-height: 0;
+    height: 100%;
+    overflow-y: auto;
+    border-left: 1px solid rgba(255, 255, 255, .07);
+    background: linear-gradient(180deg, #0d1020 0%, #080b14 100%);
+    display: block;
+  }
+
+  #info-panel-content {
+    padding-bottom: 60px;
+  }
+
+  #info-panel::-webkit-scrollbar {
+    width: 6px
+  }
+
+  #info-panel::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, .3);
+    border-radius: 3px
+  }
+
+  #weather-card {
+    margin: 16px 16px 0;
+    border-radius: 16px;
+    padding: 16px;
+    background: rgba(255, 255, 255, .03);
+    border: 1px solid rgba(255, 255, 255, .08);
+    position: relative;
+    overflow: hidden
+  }
+
+  #weather-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #f97316, #ef4444, #8b5cf6)
+  }
+
+  .weather-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 12px
+  }
+
+  .weather-item {
+    background: rgba(255, 255, 255, .03);
+    border: 1px solid rgba(255, 255, 255, .06);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px
+  }
+
+  .weather-label {
+    font-size: 10px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-weight: 600
+  }
+
+  .weather-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: #e2e8f0;
+    line-height: 1.2
+  }
+
+  .weather-unit {
+    font-size: 11px;
+    color: #94a3b8
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px
+  }
+
+  #alerts-section {
+    margin: 12px 16px 0
+  }
+
+  .alert-banner {
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 8px;
+    border: 1px solid;
+    position: relative;
+    overflow: hidden
+  }
+
+  .alert-banner::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px
+  }
+
+  .alert-banner.emergency {
+    background: rgba(239, 68, 68, .08);
+    border-color: rgba(239, 68, 68, .3)
+  }
+
+  .alert-banner.emergency::before {
+    background: #ef4444
+  }
+
+  .alert-banner.warning {
+    background: rgba(249, 115, 22, .08);
+    border-color: rgba(249, 115, 22, .3)
+  }
+
+  .alert-banner.warning::before {
+    background: #f97316
+  }
+
+  .alert-banner.watch {
+    background: rgba(234, 179, 8, .08);
+    border-color: rgba(234, 179, 8, .25)
+  }
+
+  .alert-banner.watch::before {
+    background: #eab308
+  }
+
+  .alert-level-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 99px;
+    margin-bottom: 6px
+  }
+
+  .alert-banner.emergency .alert-level-badge {
+    background: rgba(239, 68, 68, .2);
+    color: #fca5a5
+  }
+
+  .alert-banner.warning .alert-level-badge {
+    background: rgba(249, 115, 22, .2);
+    color: #fdba74
+  }
+
+  .alert-banner.watch .alert-level-badge {
+    background: rgba(234, 179, 8, .2);
+    color: #fde047
+  }
+
+  .alert-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #e2e8f0;
+    margin-bottom: 4px
+  }
+
+  .alert-area {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 6px
+  }
+
+  .alert-desc {
+    font-size: 12px;
+    color: #cbd5e1;
+    line-height: 1.6
+  }
+
+  .alert-meta {
+    font-size: 10px;
+    color: #475569;
+    margin-top: 8px
+  }
+
+  .no-alerts {
+    text-align: center;
+    padding: 20px;
+    color: #1e3a5f;
+    font-size: 13px;
+    background: rgba(255, 255, 255, .02);
+    border: 1px dashed rgba(255, 255, 255, .06);
+    border-radius: 12px
+  }
+
+  #auto-alert-strip {
+    margin: 8px 16px 0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    display: none;
+    align-items: center;
+    gap: 8px
+  }
+
+  #auto-alert-strip.show {
+    display: flex
+  }
+
+  #auto-alert-strip.emergency {
+    background: rgba(239, 68, 68, .12);
+    border: 1px solid rgba(239, 68, 68, .3);
+    color: #fca5a5
+  }
+
+  #auto-alert-strip.warning {
+    background: rgba(249, 115, 22, .12);
+    border: 1px solid rgba(249, 115, 22, .3);
+    color: #fdba74
+  }
+
+  #auto-alert-strip.watch {
+    background: rgba(234, 179, 8, .12);
+    border: 1px solid rgba(234, 179, 8, .25);
+    color: #fde047
+  }
+
+  #guides-section {
+    margin: 12px 16px 16px
+  }
+
+  .accordion-item {
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, .07);
+    margin-bottom: 8px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, .02)
+  }
+
+  .accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    cursor: pointer;
+    user-select: none;
+    transition: background .2s
+  }
+
+  .accordion-header:hover {
+    background: rgba(255, 255, 255, .04)
+  }
+
+  .accordion-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px
+  }
+
+  .accordion-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0
+  }
+
+  .accordion-icon.house {
+    background: rgba(59, 130, 246, .15)
+  }
+
+  .accordion-icon.evac {
+    background: rgba(34, 197, 94, .15)
+  }
+
+  .accordion-icon.phone {
+    background: rgba(168, 85, 247, .15)
+  }
+
+  .accordion-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #e2e8f0
+  }
+
+  .accordion-sub {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 1px
+  }
+
+  .accordion-chevron {
+    font-size: 18px;
+    color: #475569;
+    transition: transform .3s
+  }
+
+  .accordion-item.open .accordion-chevron {
+    transform: rotate(180deg)
+  }
+
+  .accordion-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height .35s ease
+  }
+
+  .accordion-item.open .accordion-body {
+    max-height: 3000px
+  }
+
+  .accordion-content {
+    padding: 4px 16px 16px;
+    border-top: 1px solid rgba(255, 255, 255, .05)
+  }
+
+  .guide-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, .04)
+  }
+
+  .guide-step:last-child {
+    border-bottom: none
+  }
+
+  .step-num {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    margin-top: 1px
+  }
+
+  .step-num.blue {
+    background: rgba(59, 130, 246, .2);
+    color: #60a5fa
+  }
+
+  .step-num.green {
+    background: rgba(34, 197, 94, .2);
+    color: #4ade80
+  }
+
+  .step-num.purple {
+    background: rgba(168, 85, 247, .2);
+    color: #c084fc
+  }
+
+  .step-text {
+    font-size: 12px;
+    color: #cbd5e1;
+    line-height: 1.6
+  }
+
+  .step-text strong {
+    color: #e2e8f0
+  }
+
+  .phone-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, .04)
+  }
+
+  .phone-item:last-child {
+    border-bottom: none
+  }
+
+  .phone-name {
+    font-size: 12px;
+    color: #94a3b8
+  }
+
+  .phone-number {
+    font-size: 16px;
+    font-weight: 800;
+    color: #c084fc;
+    text-decoration: none;
+    font-family: 'Space Grotesk', monospace
+  }
+
+  .phone-number:hover {
+    color: #e879f9
+  }
+
+  .phone-desc {
+    font-size: 10px;
+    color: #475569;
+    margin-top: 1px
+  }
+
+  @media(max-width:768px) {
+    #storm-body {
+      flex-direction: column
+    }
+
+    #windy-panel {
+      flex: 0 0 55vh
+    }
+
+    #info-panel {
+      flex: 1
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="storm-page">
+  <header id="storm-header"
+    class="flex items-center justify-between px-5 py-0 border-b border-white/8 bg-background-dark/95 backdrop-blur-md">
+    <a href="{% url 'portal:home' %}"
+      class="flex items-center gap-2 glass-card px-3 py-1.5 rounded-full hover:border-red-500/30 transition-all text-sm font-bold">
+      <span class="material-symbols-outlined text-red-400 text-base">emergency</span>HE THONG CUU HO
+    </a>
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-orange-400 text-lg">storm</span>
+      <span class="text-sm font-bold text-orange-300 hidden sm:block">CANH BAO BAO &amp; AN TOAN</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="hidden sm:flex items-center gap-1.5 px-3 py-1 glass-card rounded-full">
+        <span class="material-symbols-outlined text-xs text-slate-400">schedule</span>
+        <span id="current-time" class="text-xs font-medium text-slate-300"></span>
+      </div>
+      <div class="flex items-center gap-1.5 px-3 py-1 bg-orange-500/10 border border-orange-500/20 rounded-full">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+        </span>
+        <span class="text-xs font-medium text-orange-400 uppercase tracking-wider">Theo doi</span>
+      </div>
+      <a href="{% url 'portal:admin_dashboard' %}"
+        class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full glass-card hover:bg-white/5 transition-colors text-xs font-medium text-slate-300">
+        <span class="material-symbols-outlined text-sm">admin_panel_settings</span>Dieu phoi
+      </a>
+    </div>
+  </header>
+
+  <div id="storm-body">
+    <!-- BAN DO WINDY -->
+    <div id="windy-panel">
+      <div id="windy-loading">
+        <div class="loading-spinner"></div>
+        <p class="text-sm text-slate-500 font-medium">Dang tai ban do thoi tiet...</p>
+      </div>
+      <div id="windy-label">
+        <span class="material-symbols-outlined" style="font-size:16px">storm</span>
+        Ban do thoi tiet - Windy.com
+      </div>
+      <iframe id="windy-iframe"
+        src="https://embed.windy.com/embed2.html?lat=13.85&lon=108.35&detailLat=13.85&detailLon=108.35&zoom=8&level=surface&overlay=wind&product=ecmwf&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1&lang=vi"
+        allow="geolocation" loading="lazy" onload="document.getElementById('windy-loading').classList.add('hidden')">
+      </iframe>
+      <div id="windy-layers">
+        <button class="layer-btn active" onclick="switchLayer('wind',this)">&#127783; Gio</button>
+        <button class="layer-btn" onclick="switchLayer('rain',this)">&#127783;&#65039; Mua</button>
+        <button class="layer-btn" onclick="switchLayer('temp',this)">&#127777; Nhiet do</button>
+        <button class="layer-btn" onclick="switchLayer('clouds',this)">&#9729; May</button>
+        <button class="layer-btn" onclick="switchLayer('thunder',this)">&#9889; Sam set</button>
+        <button class="layer-btn" onclick="switchLayer('waves',this)">&#127754; Song bien</button>
+      </div>
+    </div>
+
+    <!-- THONG TIN & HUONG DAN -->
+    <div id="info-panel">
+      <div id="info-panel-content">
+        <div id="auto-alert-strip">
+          <span class="material-symbols-outlined" style="font-size:18px">warning</span>
+          <span id="auto-alert-msg"></span>
+        </div>
+
+        <div id="weather-card">
+          <div class="flex items-center justify-between mb-1">
+            <div>
+              <div class="section-title" style="margin-bottom:2px">
+                <span class="material-symbols-outlined" style="font-size:14px">partly_cloudy_day</span>
+                Thoi tiet hien tai
+              </div>
+              <div id="weather-location" style="font-size:11px;color:#475569">Dang lay du lieu...</div>
+            </div>
+            <button id="refresh-btn" onclick="refreshWeather()" title="Lam moi"
+              style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:6px;cursor:pointer;color:#64748b;transition:all .2s">
+              <span class="material-symbols-outlined" style="font-size:16px">refresh</span>
+            </button>
+          </div>
+          <div class="weather-grid">
+            <div class="weather-item">
+              <div class="weather-label">Nhiet do</div>
+              <div class="weather-value" id="w-temp">-</div>
+              <div class="weather-unit">C</div>
+            </div>
+            <div class="weather-item">
+              <div class="weather-label">Do am</div>
+              <div class="weather-value" id="w-humidity">-</div>
+              <div class="weather-unit">%</div>
+            </div>
+            <div class="weather-item">
+              <div class="weather-label">Toc do gio</div>
+              <div class="weather-value" id="w-wind" style="color:#fb923c">-</div>
+              <div class="weather-unit">km/h</div>
+            </div>
+            <div class="weather-item">
+              <div class="weather-label">Luong mua</div>
+              <div class="weather-value" id="w-rain" style="color:#60a5fa">-</div>
+              <div class="weather-unit">mm/h</div>
+            </div>
+          </div>
+          <div id="weather-updated" style="font-size:10px;color:#334155;margin-top:10px;text-align:right"></div>
+        </div>
+
+        <div id="alerts-section">
+          <div class="section-title" style="margin-top:14px">
+            <span class="material-symbols-outlined" style="font-size:14px">crisis_alert</span>
+            Canh bao thien tai
+            <span id="alert-count-badge"
+              style="background:rgba(239,68,68,.2);color:#fca5a5;border-radius:99px;padding:1px 7px;font-size:10px;font-weight:700;display:none"></span>
+          </div>
+          <div id="alerts-container">
+            {% if active_alerts %}
+            {% for alert in active_alerts %}
+            <div class="alert-banner {{ alert.level }}">
+              <div class="alert-level-badge">{{ alert.get_level_display }}</div>
+              <div class="alert-title">{{ alert.title }}</div>
+              {% if alert.affected_area %}<div class="alert-area">{{ alert.affected_area }}</div>{% endif %}
+              <div class="alert-desc">{{ alert.description }}</div>
+              <div class="alert-meta">{{ alert.source }} - {{ alert.created_at|date:"d/m/Y H:i" }}{% if alert.expires_at %} - Het luc {{ alert.expires_at|date:"d/m H:i" }}{% endif %}</div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="no-alerts" id="no-alerts-msg">
+              <span class="material-symbols-outlined"
+                style="font-size:28px;display:block;margin-bottom:6px;color:#1e3a5f">check_circle</span>
+              Khong co canh bao thien tai nao dang hieu luc
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div id="nearest-station-section"
+          style="margin:12px 16px 0; background:rgba(34, 197, 94, 0.08); border:1px solid rgba(34, 197, 94, 0.3); border-radius:12px; padding:14px; position:relative; overflow:hidden;">
+          <div
+            style="font-size:11px;font-weight:700;color:#4ade80;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+            <span class="material-symbols-outlined" style="font-size:14px">my_location</span>
+            TRAM CUU HO GAN BAN NHAT
+          </div>
+          <div id="ns-loading" style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:8px;">
+            <div class="loading-spinner" style="width:16px;height:16px;border-width:2px;border-top-color:#4ade80;">
+            </div>
+            Dang xac dinh vi tri...
+          </div>
+          <div id="ns-info" style="display:none;">
+            <div id="ns-name" style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:4px;"></div>
+            <div id="ns-distance" style="font-size:11px;color:#94a3b8;margin-bottom:12px;"></div>
+            <a href="#" id="ns-phone"
+              style="display:inline-flex;align-items:center;gap:8px;background:rgba(34, 197, 94, 0.2);color:#4ade80;padding:8px 16px;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;font-family:'Space Grotesk',monospace;border:1px solid rgba(34,197,94,0.3)">
+              <span class="material-symbols-outlined" style="font-size:18px">call</span>
+              <span id="ns-phone-text"></span>
+            </a>
+          </div>
+          <div id="ns-error" style="display:none;font-size:12px;color:#fca5a5;">Khong the xac dinh vi tri. Vui long bat
+            GPS.</div>
+        </div>
+
+        <div id="guides-section">
+          <div class="section-title" style="margin-top:4px;margin-bottom:10px">
+            <span class="material-symbols-outlined" style="font-size:14px">menu_book</span>
+            Huong dan ung pho
+          </div>
+
+          <div class="accordion-item" id="acc-house">
+            <div class="accordion-header" onclick="toggleAcc('acc-house')">
+              <div class="accordion-header-left">
+                <div class="accordion-icon house">&#127968;</div>
+                <div>
+                  <div class="accordion-title">Gia co nha cua truoc bao</div>
+                  <div class="accordion-sub">8 buoc chuan bi quan trong</div>
+                </div>
+              </div>
+              <span class="material-symbols-outlined accordion-chevron">expand_more</span>
+            </div>
+            <div class="accordion-body">
+              <div class="accordion-content">
+                <div class="guide-step">
+                  <div class="step-num blue">1</div>
+                  <div class="step-text"><strong>Kiem tra va gia co mai nha.</strong> Dung day buoc hoac thanh thep neo
+                    chac mai ton, ngoi - day la bo phan de bay nhat khi bao.</div>
+                </div>
+                <div class="guide-step">
+                  <div class="step-num blue">2</div>
+                  <div class="step-text"><strong>Gia co cua chinh va cua so.</strong> Dong chat, chen them thanh ngang.
+                    Dan bang keo chu X len kinh de tranh vo tung toe.</div>
+                </div>
+                <div class="guide-step">
+                  <div class="step-num blue">3</div>
+                  <div class="step-text"><strong>Thu don do vat ngoai troi.</strong> Cay canh, ban ghe, bien hieu, xe
+                    dap deu phai dua vao trong hoac buoc chat.</div>
+                </div>
+                <div class="guide-step">
+                  <div class="step-num blue">4</div>
+                  <div class="step-text"><strong>Tat cau dao dien.</strong> Neu bao den gan, ngat dien toan nha de tranh
+                    chap dien va hoa hoan.</div>
+                </div>
+                <div class="guide-step">
+                  <div class="step-num blue">5</div>
+                  <div class="step-text"><strong>Du tru nuoc sach</strong> trong can, binh, bon - du dung it nhat 3 ngay
+                    cho ca gia dinh.</div>
+                </div>
+                <div class="guide-step">
+                  <div class="step-num blue">6</div>
+                  <div class="step-text"><strong>Chuan bi luong thuc kho:</strong> mi goi, gao, do hop, banh mi - du it
+                    nhat 3-5 ngay khong can nau.</div>
+                </div>
+                <div class="guide-step">
+                  <div class="step-num blue">7</div>
+                  <div class="step-text"><strong>Sac day dien thoai va pin du phong.</strong> Luu so dien thoai khan cap
+                    vao giay phong khi mat dien thoai.</div>
+                </div>
+                <div class="guide-step">
+                  <div class="step-num blue">8</div>
+                  <div class="step-text"><strong>Chuan bi hop so cuu</strong> voi bang gac, thuoc khu trung, thuoc thong
+                    thuong va den pin du phong.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item" id="acc-evac">
+            <div class="accordion-header" onclick="toggleAcc('acc-evac')">
+              <div class="accordion-header-left">
+                <div class="accordion-icon evac">&#128694;</div>
+                <div>
+                  <div class="accordion-title">Huong dan so tan an toan</div>
+                  <div class="accordion-sub">Khi nao va cach so tan dung cach</div>
+                </div>
+              </div>
+              <span class="material-symbols-outlined accordion-chevron">expand_more</span>
+            </div>
+            <div class="accordion-body">
+              <div class="accordion-content">
+                <div class="guide-step">
+                  <div class="step-num green">1</div>
+                  <div class="step-text"><strong>Nghe lenh so tan cua chinh quyen.</strong> Khi co lenh, phai thuc hien
+                    ngay, khong o lai vi bat ky ly do gi.</div>
+                </div>
+                <div class="guide-step">
+                  <div class="step-num green">2</div>
+                  <div class="step-text"><strong>Di so tan som, truoc khi bao do bo 12-24 gio.</strong> Duong xa se ngap
+                    va ket xe khi bao gan bo.</div>
+                </div>
+                <div class="guide-step">
+                  <div class="step-num green">3</div>
+                  <div class="step-text"><strong>Mang theo tui khan cap:</strong> giay to goc (boc nilon kin), tien mat,
+                    thuoc, quan ao, nuoc, thuc an 3 ngay.</div>
+                </div>
+                <div class="guide-step">
+                  <div class="step-num green">4</div>
+                  <div class="step-text"><strong>Khong di bo qua vung nuoc ngap.</strong> 30 cm nuoc chay xiet co the
+                    cuon nga nguoi lon.</div>
+                </div>
+                <div class="guide-step">
+                  <div class="step-num green">5</div>
+                  <div class="step-text"><strong>Den nha kien co cao tang</strong> hoac truong hoc, tru so UBND gan nhat
+                    duoc chi dinh lam noi tranh bao.</div>
+                </div>
+                <div class="guide-step">
+                  <div class="step-num green">6</div>
+                  <div class="step-text"><strong>Thong bao cho nguoi than</strong> ve dia diem so tan. Hen diem gap nhau
+                    neu mat lien lac dien thoai.</div>
+                </div>
+                <div class="guide-step">
+                  <div class="step-num green">7</div>
+                  <div class="step-text"><strong>Trong mat bao (gio ngung dot ngot):</strong> KHONG ra ngoai - day chi
+                    la trung tam bao, gio se quay lai du doi hon.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item open" id="acc-phone">
+            <div class="accordion-header" onclick="toggleAcc('acc-phone')">
+              <div class="accordion-header-left">
+                <div class="accordion-icon phone">&#128222;</div>
+                <div>
+                  <div class="accordion-title">So dien thoai khan cap</div>
+                  <div class="accordion-sub">Lien he ngay khi can ho tro</div>
+                </div>
+              </div>
+              <span class="material-symbols-outlined accordion-chevron">expand_more</span>
+            </div>
+            <div class="accordion-body">
+              <div class="accordion-content">
+                <div class="phone-item">
+                  <div>
+                    <div class="phone-name">Cuu hoa</div>
+                    <div class="phone-desc">Chua chay va cuu nan khan cap</div>
+                  </div><a href="tel:114" class="phone-number">114</a>
+                </div>
+                <div class="phone-item">
+                  <div>
+                    <div class="phone-name">Cap cuu y te</div>
+                    <div class="phone-desc">Benh vien, tai nan, thuong tich</div>
+                  </div><a href="tel:115" class="phone-number">115</a>
+                </div>
+                <div class="phone-item">
+                  <div>
+                    <div class="phone-name">Cong an</div>
+                    <div class="phone-desc">An ninh, trat tu, ho tro</div>
+                  </div><a href="tel:113" class="phone-number">113</a>
+                </div>
+                <div class="phone-item">
+                  <div>
+                    <div class="phone-name">Duong day thien tai</div>
+                    <div class="phone-desc">Tong cuc PCTT (mien phi 24/7)</div>
+                  </div><a href="tel:1800599925" class="phone-number" style="font-size:12px">1800 599 925</a>
+                </div>
+                <div class="phone-item">
+                  <div>
+                    <div class="phone-name">Gui yeu cau cuu ho</div>
+                    <div class="phone-desc">Dung he thong nay de gui khan</div>
+                  </div>
+                  <a href="{% url 'portal:home' %}"
+                    style="background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:#fca5a5;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">Gui
+                    ngay</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  var WINDY_BASE = 'https://embed.windy.com/embed2.html?lat=13.85&lon=108.35&zoom=8&level=surface&product=ecmwf&menu=&message=true&marker=true&lang=vi&metricWind=km%2Fh&metricTemp=%C2%B0C';
+  function switchLayer(l, b) { document.querySelectorAll('.layer-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); document.getElementById('windy-loading').classList.remove('hidden'); document.getElementById('windy-iframe').src = WINDY_BASE + '&overlay=' + l; }
+  document.getElementById('windy-iframe').addEventListener('load', () => document.getElementById('windy-loading').classList.add('hidden'));
+  function updateClock() { var el = document.getElementById('current-time'); if (el) el.textContent = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+  setInterval(updateClock, 1000); updateClock();
+  function toggleAcc(id) { document.getElementById(id).classList.toggle('open'); }
+  async function fetchWeather(lat, lon) {
+    lat = lat || 13.85; lon = lon || 108.35; var icon = document.getElementById('refresh-btn').querySelector('span'); icon.style.animation = 'spin .8s linear infinite';
+    try {
+      var r = await fetch('/api/weather/current/?lat=' + lat + '&lon=' + lon); var d = await r.json(); if (!d.success) return;
+      document.getElementById('w-temp').textContent = d.temperature != null ? d.temperature.toFixed(1) : '-';
+      document.getElementById('w-humidity').textContent = d.humidity != null ? d.humidity : '-';
+      document.getElementById('w-wind').textContent = d.wind_speed_kmh != null ? d.wind_speed_kmh.toFixed(1) : '-';
+      document.getElementById('w-rain').textContent = d.precipitation_mm != null ? d.precipitation_mm.toFixed(1) : '-';
+      document.getElementById('weather-location').textContent = 'Gia Lai - Cap nhat ' + new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+      var ws = d.wind_speed_kmh || 0; document.getElementById('w-wind').style.color = ws >= 90 ? '#ef4444' : ws >= 60 ? '#f97316' : ws >= 40 ? '#eab308' : '#4ade80';
+      var strip = document.getElementById('auto-alert-strip');
+      if (d.auto_level) { strip.className = 'show ' + d.auto_level; document.getElementById('auto-alert-msg').textContent = d.auto_message; strip.style.display = 'flex'; }
+      else { strip.style.display = 'none'; }
+    } catch (e) { document.getElementById('weather-location').textContent = 'Khong the lay du lieu thoi tiet'; }
+    finally { icon.style.animation = ''; }
+  }
+  function refreshWeather() { fetchWeather(); }
+  fetchWeather(); setInterval(fetchWeather, 600000);
+  async function pollAlerts() {
+    try {
+      var r = await fetch('/api/storm/alerts/'); var d = await r.json(); if (!d.success) return;
+      var badge = document.getElementById('alert-count-badge'); var container = document.getElementById('alerts-container');
+      if (d.count > 0) {
+        badge.textContent = d.count; badge.style.display = 'inline';
+        container.innerHTML = d.alerts.map(function (a) { return '<div class="alert-banner ' + a.level + '"><div class="alert-level-badge">' + a.level_display + '</div><div class="alert-title">' + a.title + '</div>' + (a.affected_area ? '<div class="alert-area">' + a.affected_area + '</div>' : '') + '<div class="alert-desc">' + a.description + '</div><div class="alert-meta">' + a.source + ' - ' + a.created_at + (a.expires_at ? ' - Het luc ' + a.expires_at : '') + '</div></div>'; }).join('');
+      }
+      else { badge.style.display = 'none'; container.innerHTML = '<div class="no-alerts">Khong co canh bao thien tai nao dang hieu luc</div>'; }
+    } catch (e) { }
+  }
+  setInterval(pollAlerts, 300000);
+
+  const STATIONS = [
+    { name: 'Tram Cuu Ho TP. Quy Nhon', lat: 13.776, lng: 109.227, phone: '0256 381 1111' },
+    { name: 'Tram Cuu Ho TP. Pleiku', lat: 13.977, lng: 108.025, phone: '0269 382 2222' },
+    { name: 'Tram Cuu Ho TX. An Nhon', lat: 13.875, lng: 109.085, phone: '0256 383 3333' },
+    { name: 'Tram Cuu Ho TX. Hoai Nhon', lat: 14.415, lng: 109.015, phone: '0256 384 4444' }
+  ];
+
+  function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+    var R = 6371;
+    var dLat = (lat2 - lat1) * (Math.PI / 180);
+    var dLon = (lon2 - lon1) * (Math.PI / 180);
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  function findNearestStation() {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(function (position) {
+        const userLat = position.coords.latitude;
+        const userLng = position.coords.longitude;
+
+        let nearest = null;
+        let minDistance = Infinity;
+
+        STATIONS.forEach(station => {
+          let dist = getDistanceFromLatLonInKm(userLat, userLng, station.lat, station.lng);
+          if (dist < minDistance) {
+            minDistance = dist;
+            nearest = station;
+          }
+        });
+
+        document.getElementById('ns-loading').style.display = 'none';
+        document.getElementById('ns-info').style.display = 'block';
+        document.getElementById('ns-name').textContent = nearest.name;
+        document.getElementById('ns-distance').textContent = 'Cach ban khoang ' + minDistance.toFixed(1) + ' km';
+        document.getElementById('ns-phone-text').textContent = nearest.phone;
+        document.getElementById('ns-phone').href = 'tel:' + nearest.phone.replace(/ /g, '');
+
+      }, function (error) {
+        document.getElementById('ns-loading').style.display = 'none';
+        document.getElementById('ns-error').style.display = 'block';
+      }, { timeout: 10000 });
+    } else {
+      document.getElementById('ns-loading').style.display = 'none';
+      document.getElementById('ns-error').style.display = 'block';
+    }
+  }
+  findNearestStation();
+
+</script>
+{% endblock %}

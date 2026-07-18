@@ -1,4 +1,9 @@
-import json
+# Helper script to write what3words_views.py
+import sys
+
+filepath = 'd:/HTCH/smart-rescue-dispatch-system-v2/django_app/portal/what3words_views.py'
+
+NEW_CONTENT = """import json
 import math
 import unicodedata
 from django.http import JsonResponse
@@ -368,3 +373,9 @@ def api_grid_section(request):
             'features': features,
         }
     })
+"""
+
+with open(filepath, 'w', encoding='utf-8') as f:
+    f.write(NEW_CONTENT)
+
+print("Updated successfully")

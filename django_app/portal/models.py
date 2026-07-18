@@ -406,3 +406,67 @@ class FirstAidGuide(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class StormAlert(models.Model):
+    """Lưu cảnh báo bão/thiên tai do admin đăng thủ công."""
+
+    LEVEL_CHOICES = [
+        ('watch',     '🟡 Theo dõi'),
+        ('warning',   '🟠 Cảnh báo'),
+        ('emergency', '🔴 Khẩn cấp'),
+    ]
+
+    title = models.CharField(
+        max_length=200,
+        verbose_name='Tiêu đề cảnh báo'
+    )
+
+    level = models.CharField(
+        max_length=20,
+        choices=LEVEL_CHOICES,
+        default='watch',
+        verbose_name='Mức độ cảnh báo'
+    )
+
+    affected_area = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name='Khu vực bị ảnh hưởng',
+        help_text='VD: Đà Nẵng, Quảng Nam, Thừa Thiên Huế'
+    )
+
+    description = models.TextField(
+        verbose_name='Nội dung cảnh báo'
+    )
+
+    source = models.CharField(
+        max_length=100,
+        blank=True,
+        default='Ban Chỉ huy PCTT tỉnh',
+        verbose_name='Nguồn phát đi'
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='Đang hiệu lực'
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Thời gian đăng'
+    )
+
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Hết hiệu lực lúc'
+    )
+
+    class Meta:
+        verbose_name = 'Cảnh báo bão / Thiên tai'
+        verbose_name_plural = 'Danh sách cảnh báo bão'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'[{self.get_level_display()}] {self.title}'

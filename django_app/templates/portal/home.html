@@ -373,12 +373,73 @@
     stroke: rgba(167, 139, 250, 0.35);
     stroke-width: 0.5;
   }
+
+  /* ═══════════════════════════════════════════════════
+     GLOBAL STORM ALERT BANNER
+  ═══════════════════════════════════════════════════ */
+  #global-storm-alert {
+    position: fixed;
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    background: rgba(239, 68, 68, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4);
+    backdrop-filter: blur(10px);
+    transition: top 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    max-width: 90%;
+  }
+  #global-storm-alert.show {
+    top: 20px;
+  }
+  .gsa-icon {
+    font-size: 28px;
+    color: white;
+    animation: gsa-shake 1s infinite alternate;
+  }
+  @keyframes gsa-shake { 
+    0% { transform: rotate(-10deg); } 
+    100% { transform: rotate(10deg); } 
+  }
+  .gsa-content h4 {
+    margin: 0; font-size: 14px; font-weight: 700; color: white; text-transform: uppercase;
+  }
+  .gsa-content p {
+    margin: 2px 0 0 0; font-size: 12px; color: rgba(255,255,255,0.9);
+  }
+  .gsa-btn {
+    background: white; color: #ef4444; padding: 6px 14px; border-radius: 8px;
+    font-size: 12px; font-weight: 700; text-decoration: none; white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .gsa-btn:hover { background: #fca5a5; color: #7f1d1d; }
+  .gsa-close {
+    cursor: pointer; color: rgba(255,255,255,0.7); font-size: 18px; margin-left: 4px;
+  }
+  .gsa-close:hover { color: white; }
 </style>
 {% endblock %}
 
 
 {% block content %}
 <div id="rescue-page">
+
+  <!-- ── GLOBAL STORM ALERT ── -->
+  <div id="global-storm-alert">
+    <span class="material-symbols-outlined gsa-icon">storm</span>
+    <div class="gsa-content">
+      <h4>Cảnh báo Bão / Khẩn cấp!</h4>
+      <p id="gsa-message">Đang có cảnh báo thời tiết nguy hiểm.</p>
+    </div>
+    <a href="{% url 'portal:storm_warning' %}" class="gsa-btn">Xem hướng dẫn</a>
+    <span class="material-symbols-outlined gsa-close" onclick="closeGlobalAlert()">close</span>
+  </div>
 
   <!-- ── HEADER ── -->
   <header id="rescue-header"
@@ -413,6 +474,15 @@
           Hoạt động
         </span>
       </div>
+
+      <!-- Link cảnh báo bão -->
+      <a href="{% url 'portal:storm_warning' %}"
+         class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full
+                bg-orange-500/10 border border-orange-500/25
+                hover:bg-orange-500/20 transition-colors text-xs font-medium text-orange-300">
+        <span class="material-symbols-outlined text-sm">storm</span>
+        Cảnh báo Bão
+      </a>
 
       <!-- Link điều phối -->
       <a href="{% url 'portal:admin_dashboard' %}"
@@ -460,7 +530,7 @@
         </p>
         <input id="words-input"
                type="text"
-               placeholder="Ví dụ: ăn.uống.ngủ hoặc ///ăn.uống.ngủ"
+               placeholder="Ví dụ: #tây.vị.sẻ"
                autocomplete="off"
                spellcheck="false" />
         <div class="flex gap-2">
@@ -656,8 +726,8 @@ const API_GRID_SECTION     = "{% url 'portal:api_grid_section' %}";
 const API_REQUEST_RESCUE   = "{% url 'portal:api_request_rescue' %}";
 const API_STATS            = "{% url 'portal:api_stats' %}";
 
-const HCM_CENTER = [10.7769, 106.7009];
-const HCM_BOUNDS = [[10.37, 106.35], [11.16, 107.05]];
+const HCM_CENTER = [13.776, 109.227];
+const HCM_BOUNDS = [[12.8, 107.3], [14.8, 109.5]];
 const GRID_MIN_ZOOM = 15; // hiển thị lưới ô khi zoom >= 15
 
 // ═══════════════════════════════════════════════════════════════
@@ -867,7 +937,7 @@ function applyLocation(lat, lng, accuracy, words, source) {
   updateLocationCard(lat, lng, accuracy, words, source);
 
   // Cập nhật field trong form
-  document.getElementById('form-3wa').value = words ? ('///' + words) : '';
+  document.getElementById('form-3wa').value = words ? ('#' + words) : '';
 
   // Bật nút gửi
   document.getElementById('btn-submit').disabled = false;
@@ -876,7 +946,7 @@ function applyLocation(lat, lng, accuracy, words, source) {
   const sourceLabel = { gps: 'GPS', three_words: 'Địa chỉ 3 từ', map: 'Chọn trên bản đồ' };
   const accText = (accuracy && source === 'gps') ? ` ±${Math.round(accuracy)}m` : '';
   setLocStatus('ok',
-    `${sourceLabel[source]}${accText} — ${words ? ('///' + words) : (lat.toFixed(5) + ', ' + lng.toFixed(5))}`
+    `${sourceLabel[source]}${accText} — ${words ? ('#' + words) : (lat.toFixed(5) + ', ' + lng.toFixed(5))}`
   );
 
   // Tải lưới ô nếu đủ zoom
@@ -979,11 +1049,15 @@ async function loadGrid() {
     if (gridLayer) { map.removeLayer(gridLayer); gridLayer = null; }
 
     gridLayer = L.geoJSON(json.data, {
-      style: {
-        color: 'rgba(167, 139, 250, 0.3)',
-        weight: 0.7,
-        fill: false,
-      },
+      style: function(feature) {
+        const zoneStyles = [
+          { color: '#a78bfa', weight: 1.0, opacity: 0.35 }, // urban
+          { color: '#fb923c', weight: 0.8, opacity: 0.30 }, // suburban
+          { color: '#34d399', weight: 0.6, opacity: 0.25 }, // rural
+        ];
+        const z = feature.properties ? feature.properties.zone : 0;
+        return zoneStyles[z] || zoneStyles[0];
+      }
     }).addTo(map);
 
   } catch (_) { /* bỏ qua lỗi mạng */ }
@@ -1018,7 +1092,7 @@ function updateLocationCard(lat, lng, accuracy, words, source) {
   const card = document.getElementById('location-card');
   card.classList.add('visible');
 
-  document.getElementById('lc-3wa').textContent = words ? ('///' + words) : '—';
+  document.getElementById('lc-3wa').textContent = words ? ('#' + words) : '—';
   document.getElementById('lc-coords').textContent =
     `${lat.toFixed(6)}°N, ${lng.toFixed(6)}°E`;
 
@@ -1154,7 +1228,7 @@ async function submitRescue() {
     description:       document.getElementById('f-desc').value.trim(),
     latitude:          currentLat,
     longitude:         currentLng,
-    address:           current3wa ? ('///' + current3wa) : '',
+    address:           current3wa ? ('#' + current3wa) : '',
     location_source:   currentSource,
     location_accuracy_m: currentAccuracy,
     what3words_address:  current3wa,
@@ -1183,7 +1257,7 @@ async function submitRescue() {
     // Cũng cập nhật khu vực feedback trong form
     document.getElementById('result-content').innerHTML = `
       <p>🆔 <strong>Mã yêu cầu:</strong> #${d.report_id}</p>
-      <p>📍 <strong>Địa chỉ 3 từ:</strong> ${current3wa ? ('///' + current3wa) : '—'}</p>
+      <p>📍 <strong>Địa chỉ 3 từ:</strong> ${current3wa ? ('#' + current3wa) : '—'}</p>
       <p>🌐 <strong>Tọa độ:</strong> ${currentLat.toFixed(5)}, ${currentLng.toFixed(5)}</p>
     `;
     resultBox.classList.remove('hidden');
@@ -1238,14 +1312,60 @@ setInterval(updateClock, 1000);
 updateClock();
 
 // ═══════════════════════════════════════════════════════════════
-// KHỞI ĐỘNG — Tự động lấy GPS khi vào trang
+// GLOBAL STORM ALERT POLLING
 // ═══════════════════════════════════════════════════════════════
+let alertDismissed = false;
+
+function closeGlobalAlert() {
+  document.getElementById('global-storm-alert').classList.remove('show');
+  alertDismissed = true;
+}
+
+async function checkGlobalStormAlert() {
+  if (alertDismissed) return;
+  try {
+    let alertMsg = null;
+    
+    // 1. Kiểm tra cảnh báo Admin trước (ưu tiên cao)
+    const aRes = await fetch('/api/storm/alerts/');
+    const aData = await aRes.json();
+    if (aData.success && aData.count > 0) {
+      const activeAlert = aData.alerts[0]; // Cảnh báo mới nhất
+      if (activeAlert.level === 'warning' || activeAlert.level === 'emergency') {
+         alertMsg = `[${activeAlert.level_display}] ${activeAlert.title}`;
+      }
+    }
+    
+    // 2. Nếu admin ko có cảnh báo khẩn, kiểm tra thời tiết thực tế
+    if (!alertMsg) {
+      const wRes = await fetch('/api/weather/current/');
+      const wData = await wRes.json();
+      if (wData.success && (wData.auto_level === 'warning' || wData.auto_level === 'emergency')) {
+        alertMsg = wData.auto_message;
+      }
+    }
+    
+    if (alertMsg) {
+       document.getElementById('gsa-message').textContent = alertMsg;
+       document.getElementById('global-storm-alert').classList.add('show');
+    } else {
+       document.getElementById('global-storm-alert').classList.remove('show');
+    }
+  } catch (e) {
+    console.error("Lỗi kiểm tra bão:", e);
+  }
+}
+
 window.addEventListener('load', function() {
   // Cập nhật stats
   setInterval(fetchStats, 30000);
 
   // Tự động lấy GPS sau 500ms
   setTimeout(startGPS, 500);
+
+  // Kiểm tra cảnh báo bão ngay khi tải trang và mỗi 3 phút
+  setTimeout(checkGlobalStormAlert, 1500);
+  setInterval(checkGlobalStormAlert, 3 * 60 * 1000);
 });
 </script>
 {% endblock %}

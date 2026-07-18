@@ -6,6 +6,7 @@ from .models import (
     VictimReport,
     RescueLog,
     SystemStats,
+    StormAlert,
 )
 
 
@@ -277,3 +278,46 @@ class SystemStatsAdmin(admin.ModelAdmin):
 
     date_hierarchy = 'date'
 
+
+# =====================================================
+# QUẢN LÝ CẢNH BÁO BÃO
+# =====================================================
+
+@admin.register(StormAlert)
+class StormAlertAdmin(admin.ModelAdmin):
+    list_display = [
+        'title',
+        'level',
+        'affected_area',
+        'is_active',
+        'source',
+        'created_at',
+        'expires_at',
+    ]
+
+    list_filter = [
+        'level',
+        'is_active',
+    ]
+
+    search_fields = [
+        'title',
+        'affected_area',
+        'description',
+    ]
+
+    list_editable = [
+        'is_active',
+        'level',
+    ]
+
+    ordering = ['-created_at']
+
+    fieldsets = [
+        ('Thông tin cảnh báo', {
+            'fields': ('title', 'level', 'affected_area', 'description', 'source')
+        }),
+        ('Trạng thái & Thời gian', {
+            'fields': ('is_active', 'expires_at')
+        }),
+    ]

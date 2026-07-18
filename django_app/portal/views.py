@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 
 from django.db import transaction
-from django.db.models import Avg, Q, Case, When, Value, IntegerField
+from django.db.models import Avg, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -18,7 +18,8 @@ from .models import (
     RescueLog,
     RescueStation,
     VictimReport,
-    FirstAidGuide
+    FirstAidGuide,
+    StormAlert,
 )
 
 # =====================================================
@@ -241,20 +242,7 @@ def admin_dashboard(request):
     active_requests = VictimReport.objects.filter(status__in=['assigned', 'on_the_way']).count()
     completed_today = VictimReport.objects.filter(status='completed', updated_at__date=today).count()
 
-    priority_order = Case(
-        When(emergency_level='critical', then=Value(4)),
-        When(emergency_level='high', then=Value(3)),
-        When(emergency_level='medium', then=Value(2)),
-        When(emergency_level='low', then=Value(1)),
-        default=Value(0),
-        output_field=IntegerField(),
-    )
-
-    recent_requests = VictimReport.objects.select_related('assigned_station').exclude(
-        status__in=['completed', 'cancelled']
-    ).annotate(
-        dispatch_priority=priority_order
-    ).order_by('-dispatch_priority', '-created_at')[:20]
+    recent_requests = VictimReport.objects.select_related('assigned_station').order_by('-created_at')[:20]
     recent_logs = RescueLog.objects.select_related('report', 'station').order_by('-assigned_at')[:20]
     stations = RescueStation.objects.all().order_by('station_code')
 
@@ -485,7 +473,7 @@ def api_request_rescue(request):
     except (TypeError, ValueError):
         location_accuracy_m = None
 
-    what3words_address = str(data.get('what3words_address') or '').strip().removeprefix('///')
+    what3words_address = str(data.get('what3words_address') or '').strip().removeprefix('#').removeprefix('///')
 
     report = VictimReport.objects.create(
         reporter=request.user if request.user.is_authenticated else None,
@@ -590,21 +578,11 @@ def api_dispatch_rescue(request, report_id):
 @require_http_methods(['GET'])
 def api_rescue_requests(request):
     status_filter = request.GET.get('status')
-    priority_order = Case(
-        When(emergency_level='critical', then=Value(4)),
-        When(emergency_level='high', then=Value(3)),
-        When(emergency_level='medium', then=Value(2)),
-        When(emergency_level='low', then=Value(1)),
-        default=Value(0),
-        output_field=IntegerField(),
-    )
-    reports = VictimReport.objects.select_related('assigned_station').annotate(
-        dispatch_priority=priority_order
-    )
+    reports = VictimReport.objects.select_related('assigned_station').all()
 
     if status_filter:
         reports = reports.filter(status=status_filter)
-    reports = reports.order_by('-dispatch_priority', '-created_at')
+    reports = reports.order_by('-created_at')
 
     data = []
     for report in reports:
@@ -998,3 +976,117 @@ def first_aid_page(request):
     Trang giao diện độc lập cho Trợ lý Sơ cứu Khẩn cấp AI.
     """
     return render(request, 'portal/first_aid.html')
+
+
+# =====================================================
+# MODULE CẢNH BÁO BÃO & HƯỚNG DẪN AN TOÀN
+# =====================================================
+
+def storm_warning_page(request):
+    """
+    Trang cảnh báo bão và hướng dẫn ứng phó thiên tai.
+    """
+    active_alerts = StormAlert.objects.filter(is_active=True).order_by('-created_at')
+    return render(request, 'portal/storm_warning.html', {
+        'active_alerts': active_alerts,
+    })
+
+
+@require_http_methods(['GET'])
+def api_storm_alerts(request):
+    """
+    Trả về danh sách cảnh báo bão đang hiệu lực (JSON).
+    Frontend polling mỗi 5 phút để cập nhật banner.
+    """
+    now = timezone.now()
+    alerts = StormAlert.objects.filter(
+        is_active=True
+    ).filter(
+        # Còn hiệu lực hoặc không có thời gian hết hạn
+        Q(expires_at__isnull=True) | Q(expires_at__gt=now)
+    ).order_by('-created_at')
+
+    data = []
+    for alert in alerts:
+        data.append({
+            'id': alert.pk,
+            'title': alert.title,
+            'level': alert.level,
+            'level_display': alert.get_level_display(),
+            'affected_area': alert.affected_area,
+            'description': alert.description,
+            'source': alert.source,
+            'created_at': alert.created_at.strftime('%d/%m/%Y %H:%M'),
+            'expires_at': alert.expires_at.strftime('%d/%m/%Y %H:%M') if alert.expires_at else None,
+        })
+
+    return JsonResponse({'success': True, 'count': len(data), 'alerts': data})
+
+
+@require_http_methods(['GET'])
+def api_weather_current(request):
+    """
+    Lấy thông tin thời tiết hiện tại từ Open-Meteo (miễn phí, không cần API key).
+    Tham số: lat, lon (mặc định Đà Nẵng)
+    """
+    lat = request.GET.get('lat', '16.0544')
+    lon = request.GET.get('lon', '108.2022')
+
+    try:
+        # Validate tọa độ
+        lat = float(lat)
+        lon = float(lon)
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            raise ValueError('Tọa độ không hợp lệ')
+    except (ValueError, TypeError):
+        return JsonResponse({'success': False, 'error': 'Tọa độ không hợp lệ'}, status=400)
+
+    url = (
+        f'https://api.open-meteo.com/v1/forecast'
+        f'?latitude={lat}&longitude={lon}'
+        f'&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,wind_direction_10m,weather_code'
+        f'&wind_speed_unit=kmh&timezone=Asia%2FHo_Chi_Minh'
+    )
+
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'SmartRescueSystem/1.0'})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            weather_data = json.loads(resp.read().decode('utf-8'))
+
+        current = weather_data.get('current', {})
+        wind_speed = current.get('wind_speed_10m', 0)
+        precipitation = current.get('precipitation', 0)
+        weather_code = current.get('weather_code', 0)
+
+        # Đánh giá mức độ nguy hiểm tự động
+        auto_level = None
+        auto_message = None
+        if wind_speed >= 90:
+            auto_level = 'emergency'
+            auto_message = f'⚠️ Gió rất mạnh {wind_speed:.0f} km/h — Nguy hiểm tính mạng!'
+        elif wind_speed >= 60:
+            auto_level = 'warning'
+            auto_message = f'⚠️ Gió mạnh {wind_speed:.0f} km/h — Cần đề phòng'
+        elif wind_speed >= 40 or precipitation >= 20:
+            auto_level = 'watch'
+            auto_message = f'Theo dõi: gió {wind_speed:.0f} km/h, mưa {precipitation:.1f} mm/h'
+
+        return JsonResponse({
+            'success': True,
+            'lat': lat,
+            'lon': lon,
+            'temperature': current.get('temperature_2m'),
+            'humidity': current.get('relative_humidity_2m'),
+            'wind_speed_kmh': wind_speed,
+            'wind_direction': current.get('wind_direction_10m'),
+            'precipitation_mm': precipitation,
+            'weather_code': weather_code,
+            'auto_level': auto_level,
+            'auto_message': auto_message,
+            'updated_at': current.get('time', ''),
+        })
+
+    except urllib.error.URLError as e:
+        return JsonResponse({'success': False, 'error': f'Không thể kết nối Open-Meteo: {str(e)}'}, status=503)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)

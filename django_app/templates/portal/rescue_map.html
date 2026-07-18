@@ -489,19 +489,19 @@
 // KHỞI TẠO BẢN ĐỒ LEAFLET + OPENSTREETMAP
 // ══════════════════════════════════════════════════
 
-// Trung tâm TP.HCM
-const HCM_CENTER = [10.7769, 106.7009];
+// Trung tâm Gia Lai (Mới)
+const HCM_CENTER = [13.776, 109.227];
 
-// Giới hạn bản đồ trong phạm vi TP.HCM
+// Giới hạn bản đồ trong phạm vi Gia Lai + Bình Định
 const HCMC_BOUNDS = L.latLngBounds(
-  L.latLng(10.35, 106.35), // Góc Tây Nam (Cần Giờ/Nhà Bè/Bình Chánh)
-  L.latLng(11.15, 107.05)  // Góc Đông Bắc (Củ Chi/Thủ Đức)
+  L.latLng(12.8, 107.3), // Góc Tây Nam
+  L.latLng(14.8, 109.5)  // Góc Đông Bắc
 );
 
 const map = L.map('map', {
   center: HCM_CENTER,
-  zoom: 12,
-  minZoom: 10,
+  zoom: 9,
+  minZoom: 8,
   maxBounds: HCMC_BOUNDS,
   maxBoundsViscosity: 1.0, // Ngăn chặn hoàn toàn việc kéo ra ngoài phạm vi
   zoomControl: true,

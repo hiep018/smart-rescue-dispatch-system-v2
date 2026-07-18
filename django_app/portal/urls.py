@@ -136,4 +136,23 @@ urlpatterns = [
         views.api_first_aid_assistant,
         name='api_first_aid_assistant'
     ),
+
+    # =================================================
+    # MODULE CẢNH BÁO BÃO & HƯỚNG DẪN AN TOÀN
+    # =================================================
+    path(
+        'storm-warning/',
+        views.storm_warning_page,
+        name='storm_warning',
+    ),
+    path(
+        'api/storm/alerts/',
+        views.api_storm_alerts,
+        name='api_storm_alerts',
+    ),
+    path(
+        'api/weather/current/',
+        views.api_weather_current,
+        name='api_weather_current',
+    ),
 ]
