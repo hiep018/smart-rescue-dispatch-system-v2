@@ -490,6 +490,24 @@ def api_request_rescue(request):
         assigned_station=None,
         status='pending',
     )
+    
+    # Sync to Firebase for mobile admin app
+    try:
+        from .firebase_views import get_db
+        db = get_db()
+        db.collection('rescue_requests').document(str(report.id)).set({
+            'victim_name': report.victim_name,
+            'phone': report.phone,
+            'description': report.description,
+            'emergency_level': report.emergency_level,
+            'latitude': report.latitude,
+            'longitude': report.longitude,
+            'three_words': report.what3words_address,
+            'status': report.status,
+            'created_at': timezone.now().isoformat()
+        })
+    except Exception as e:
+        print(f"Error syncing to Firebase: {e}")
 
     return JsonResponse({
         'success': True,

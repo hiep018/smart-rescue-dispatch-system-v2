@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "959112993660",
+    "project_id": "graceful-castle-502418-c5",
+    "storage_bucket": "graceful-castle-502418-c5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:959112993660:android:b8be378f405c1c94ca62f9",
+        "android_client_info": {
+          "package_name": "com.example.smart_rescue_dispatch_system_user"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-PrP9nYSjwCXcWcN27HNAYep6SlkcbrA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

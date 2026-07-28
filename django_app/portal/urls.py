@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import custom_map_views
 from . import views
+from . import firebase_views
 from . import what3words_views
 
 app_name = "portal"
@@ -17,7 +18,7 @@ urlpatterns = [
     ),
     path(
         "admin-dashboard/",
-        views.admin_dashboard,
+        firebase_views.admin_dashboard,
         name="admin_dashboard",
     ),
     path(
@@ -38,7 +39,7 @@ urlpatterns = [
     # =================================================
     path(
         "api/stats/",
-        views.api_stats,
+        firebase_views.api_stats,
         name="api_stats",
     ),
 
@@ -47,22 +48,22 @@ urlpatterns = [
     # =================================================
     path(
         "api/rescue-stations/",
-        views.api_rescue_stations,
+        firebase_views.api_rescue_stations,
         name="api_rescue_stations",
     ),
     path(
         "api/rescue-stations/create/",
-        views.api_create_station,
+        firebase_views.api_create_station,
         name="api_create_station",
     ),
     path(
-        "api/rescue-stations/<int:station_id>/update/",
-        views.api_update_station,
+        "api/rescue-stations/<str:station_id>/update/",
+        firebase_views.api_update_station,
         name="api_update_station",
     ),
     path(
-        "api/rescue-stations/<int:station_id>/delete/",
-        views.api_delete_station,
+        "api/rescue-stations/<str:station_id>/delete/",
+        firebase_views.api_delete_station,
         name="api_delete_station",
     ),
 
@@ -76,22 +77,22 @@ urlpatterns = [
     ),
     path(
         "api/rescue/requests/",
-        views.api_rescue_requests,
+        firebase_views.api_rescue_requests,
         name="api_rescue_requests",
     ),
     path(
-        "api/rescue/requests/<int:report_id>/",
-        views.api_rescue_request_detail,
+        "api/rescue/requests/<str:report_id>/",
+        firebase_views.api_rescue_request_detail,
         name="api_rescue_request_detail",
     ),
     path(
-        "api/rescue/requests/<int:report_id>/status/",
-        views.api_update_rescue_status,
+        "api/rescue/requests/<str:report_id>/status/",
+        firebase_views.api_update_rescue_status,
         name="api_update_rescue_status",
     ),
     path(
-        "api/rescue/requests/<int:report_id>/delete/",
-        views.api_delete_rescue_request,
+        "api/rescue/requests/<str:report_id>/delete/",
+        firebase_views.api_delete_rescue_request,
         name="api_delete_rescue_request",
     ),
 
@@ -100,12 +101,12 @@ urlpatterns = [
     # =================================================
     path(
         "api/custom-map/data/",
-        custom_map_views.api_custom_map_data,
+        firebase_views.api_firebase_map_data,
         name="api_custom_map_data",
     ),
     path(
-        "api/rescue/requests/<int:report_id>/dispatch/",
-        custom_map_views.api_custom_dispatch,
+        "api/rescue/requests/<str:report_id>/dispatch/",
+        firebase_views.api_firebase_dispatch,
         name="api_dispatch_rescue",
     ),
 

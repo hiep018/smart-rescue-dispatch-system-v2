@@ -119,4 +119,18 @@ VIETMAP_API_KEY = os.environ.get(
 )
 
 # AI Agent Configuration
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', 'AQ.Ab8RN6JmEwGvOV0i5B_pwIpiP3Z292SLE0fF8on9umqmhzZ0qA')
+
+# Firebase Configuration
+import firebase_admin
+from firebase_admin import credentials
+
+if not firebase_admin._apps:
+    try:
+        cred = credentials.ApplicationDefault()
+        firebase_admin.initialize_app(cred, {
+            'projectId': 'graceful-castle-502418-c5',
+        })
+        print("Firebase Admin SDK initialized successfully with ADC.")
+    except Exception as e:
+        print(f"Warning: Failed to initialize Firebase Admin SDK: {e}")

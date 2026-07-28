@@ -1158,41 +1158,42 @@ Trung tâm điều phối cứu hộ
                 </div>
 
 
-                <div>
-                    <label class="block text-sm text-slate-300 mb-2">
-                        Vĩ độ (Latitude) <span class="text-red-400">*</span>
-                    </label>
+                <!-- Latitude & Longitude -->
+                <div class="grid grid-cols-2 gap-4 mt-2">
+                    <!-- Latitude -->
+                    <div>
+                        <label class="block text-sm text-slate-300 mb-2">
+                            Vĩ độ (Lat) <span class="text-red-400">*</span>
+                        </label>
+                        <input id="stationLatitude"
+                               type="number"
+                               step="any"
+                               required
+                               placeholder="13.778995"
+                               class="w-full px-4 py-3 bg-slate-800/50 border border-white/10 rounded-xl outline-none focus:border-red-500/50 transition-colors placeholder:text-slate-500/50">
+                    </div>
 
-                    <input id="stationLatitude"
-                           type="number"
-                           step="any"
-                           required
-                           placeholder="10.7769"
-                           class="w-full px-4 py-3
-                                  bg-slate-800/50
-                                  border border-white/10
-                                  rounded-xl outline-none
-                                  focus:border-red-500/50
-                                  transition-colors">
+                    <!-- Longitude -->
+                    <div>
+                        <label class="block text-sm text-slate-300 mb-2">
+                            Kinh độ (Lng) <span class="text-red-400">*</span>
+                        </label>
+                        <input id="stationLongitude"
+                               type="number"
+                               step="any"
+                               required
+                               placeholder="109.225618"
+                               class="w-full px-4 py-3 bg-slate-800/50 border border-white/10 rounded-xl outline-none focus:border-red-500/50 transition-colors placeholder:text-slate-500/50">
+                    </div>
                 </div>
-
-
-                <div>
-                    <label class="block text-sm text-slate-300 mb-2">
-                        Kinh độ (Longitude) <span class="text-red-400">*</span>
-                    </label>
-
-                    <input id="stationLongitude"
-                           type="number"
-                           step="any"
-                           required
-                           placeholder="106.7009"
-                           class="w-full px-4 py-3
-                                  bg-slate-800/50
-                                  border border-white/10
-                                  rounded-xl outline-none
-                                  focus:border-red-500/50
-                                  transition-colors">
+                
+                <!-- Nút lấy tọa độ tự động -->
+                <div class="mt-2">
+                    <button type="button" onclick="getCurrentLocation()"
+                            class="px-4 py-2 rounded-xl text-sm font-medium bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30 transition-colors flex items-center gap-2">
+                        <span class="material-symbols-outlined text-sm">my_location</span>
+                        Lấy vị trí hiện tại
+                    </button>
                 </div>
 
 
@@ -1834,7 +1835,63 @@ Trung tâm điều phối cứu hộ
         document.getElementById('stationId').value        = '';
         document.getElementById('stationVehicleCount').value = 1;
         document.getElementById('stationStatus').value    = 'available';
+        
+        // Ensure latitude and longitude are fully cleared so placeholder shows
+        document.getElementById('stationLatitude').value = '';
+        document.getElementById('stationLongitude').value = '';
+        
         showStationModal();
+    }
+
+    function getCurrentLocation() {
+        if (!navigator.geolocation) {
+            showToast("Trình duyệt của bạn không hỗ trợ định vị GPS.", "error");
+            return;
+        }
+
+        const latInput = document.getElementById('stationLatitude');
+        const lngInput = document.getElementById('stationLongitude');
+        
+        // Disable inputs and show loading state
+        latInput.disabled = true;
+        lngInput.disabled = true;
+        latInput.placeholder = "Đang lấy vị trí...";
+        lngInput.placeholder = "Đang lấy vị trí...";
+        
+        showToast("Đang lấy tọa độ GPS, vui lòng đợi...", "info");
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                latInput.value = position.coords.latitude;
+                lngInput.value = position.coords.longitude;
+                latInput.disabled = false;
+                lngInput.disabled = false;
+                latInput.placeholder = "13.778995";
+                lngInput.placeholder = "109.225618";
+                showToast("Đã lấy được tọa độ hiện tại!", "success");
+            },
+            (error) => {
+                latInput.disabled = false;
+                lngInput.disabled = false;
+                latInput.placeholder = "13.778995";
+                lngInput.placeholder = "109.225618";
+                
+                let errorMsg = "Không thể lấy vị trí. ";
+                if (error.code === error.PERMISSION_DENIED) {
+                    errorMsg += "Vui lòng cấp quyền truy cập vị trí cho trang web.";
+                } else if (error.code === error.POSITION_UNAVAILABLE) {
+                    errorMsg += "Thông tin vị trí không khả dụng.";
+                } else if (error.code === error.TIMEOUT) {
+                    errorMsg += "Yêu cầu vị trí quá thời gian.";
+                }
+                showToast(errorMsg, "error");
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
+        );
     }
 
     function openEditStationModal(id, stationCode, name, phone, address, latitude, longitude, status, vehicleCount, notes) {
@@ -1971,11 +2028,59 @@ Trung tâm điều phối cứu hộ
 
 
     // ══════════════════════════════════════════════════
-    // KHỞI ĐỘNG
+    // KHỞI ĐỘNG VÀ TỰ ĐỘNG ĐIỀU PHỐI
     // ══════════════════════════════════════════════════
 
     updateClock();
     setInterval(updateClock, 1000);
+
+    // Tự động quét và điều phối các yêu cầu 'pending'
+    async function autoDispatchPending() {
+        try {
+            const res = await fetch('{% url "portal:api_rescue_requests" %}?status=pending');
+            const result = await res.json();
+            
+            if (result.success && result.data && result.data.length > 0) {
+                let dispatchedCount = 0;
+                for (const req of result.data) {
+                    if (req.status === 'pending') {
+                        // Vô hiệu hoá nút bấm nếu đang có trên giao diện
+                        const btn = document.getElementById('dispatch-btn-' + req.id);
+                        if (btn) {
+                            btn.disabled = true;
+                            btn.innerHTML = 'Đang tự động...';
+                        }
+                        
+                        try {
+                            const dRes = await fetch(
+                                buildUrl(DISPATCH_REPORT_URL_TEMPLATE, req.id),
+                                { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+                            );
+                            const dResult = await dRes.json();
+                            if (dRes.ok && dResult.success) {
+                                showToast(`Tự động tiếp nhận và phân công trạm ${dResult.data.station.name}`, 'success');
+                                dispatchedCount++;
+                            }
+                        } catch (e) {
+                            console.error("Auto dispatch error for", req.id, e);
+                        }
+                    }
+                }
+                
+                // Nếu có điều phối thành công, tự động tải lại trang để cập nhật giao diện
+                if (dispatchedCount > 0) {
+                    setTimeout(() => location.reload(), 2000);
+                }
+            }
+        } catch (error) {
+            console.error('Error in autoDispatchPending:', error);
+        }
+    }
+
+    // Chạy mỗi 5 giây
+    setInterval(autoDispatchPending, 5000);
+    // Chạy ngay khi tải trang
+    setTimeout(autoDispatchPending, 500);
 </script>
 
 {% endblock %}
