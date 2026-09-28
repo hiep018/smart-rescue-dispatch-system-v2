@@ -5,11 +5,17 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from firebase_admin import firestore
+try:
+    from firebase_admin import firestore
+except ImportError:
+    firestore = None
+
 from portal.views import parse_json_body, validate_coordinates
 from portal.custom_map_views import haversine_km, get_road_distance_km
 
 def get_db():
+    if firestore is None:
+        raise ImportError("firebase_admin is not installed")
     return firestore.client()
 
 def admin_dashboard(request):
