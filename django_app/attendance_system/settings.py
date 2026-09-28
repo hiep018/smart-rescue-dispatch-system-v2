@@ -134,15 +134,17 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 # FIREBASE CONFIGURATION
 # =====================================================
 
-import firebase_admin
-from firebase_admin import credentials
+try:
+    import firebase_admin
+    from firebase_admin import credentials
 
-if not firebase_admin._apps:
-    try:
+    if not firebase_admin._apps:
         cred = credentials.ApplicationDefault()
         firebase_admin.initialize_app(cred, {
             'projectId': os.environ.get('FIREBASE_PROJECT_ID', 'graceful-castle-502418-c5'),
         })
         print("Firebase Admin SDK initialized successfully with ADC.")
-    except Exception as e:
-        print(f"Warning: Failed to initialize Firebase Admin SDK: {e}")
+except ImportError:
+    print("Warning: firebase_admin is not installed. Firebase features will be disabled.")
+except Exception as e:
+    print(f"Warning: Failed to initialize Firebase Admin SDK: {e}")

@@ -13,5 +13,5 @@ python-dotenv>=1.0.0
 # Static files serving
 whitenoise>=6.5.0
 
-# Firebase
-firebase-admin>=6.0.0
+# Firebase (đã loại bỏ cho bản deploy nhẹ vì quá nặng)
+# firebase-admin>=6.0.0
