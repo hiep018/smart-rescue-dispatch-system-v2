@@ -19,6 +19,11 @@ numpy>=1.24.0
 insightface>=0.7.3
 onnxruntime-gpu>=1.16.0
 
+# Static files serving (cần thiết khi DEBUG=False)
+whitenoise>=6.5.0
+
+# Firebase
+firebase-admin>=6.0.0
+
 # Optional - Production
 # gunicorn>=21.0.0
-# whitenoise>=6.5.0

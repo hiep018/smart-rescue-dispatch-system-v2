@@ -8,12 +8,20 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-change-this-in-production-123456789'
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-change-this-in-production-123456789'
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    os.environ.get('PYTHONANYWHERE_DOMAIN', 'your-username.pythonanywhere.com'),
+    '*',  # Tạm thời cho phép tất cả, có thể xóa sau khi deploy xong
+]
 
 # Increase max upload size for face images (50MB)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
@@ -33,6 +41,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files không cần nginx
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -96,6 +105,9 @@ STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+# WhiteNoise - nén và cache static files tự động
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -104,24 +116,24 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-WHAT3WORDS_API_KEY = os.environ.get(
-    'WHAT3WORDS_API_KEY',
-    ''
-)
+# =====================================================
+# API KEYS
+# =====================================================
 
-WHAT3WORDS_BASE_URL = (
-    'https://api.what3words.com/v3'
-)
+WHAT3WORDS_API_KEY = os.environ.get('WHAT3WORDS_API_KEY', '')
 
-VIETMAP_API_KEY = os.environ.get(
-    'VIETMAP_API_KEY',
-    ''
-)
+WHAT3WORDS_BASE_URL = 'https://api.what3words.com/v3'
+
+VIETMAP_API_KEY = os.environ.get('VIETMAP_API_KEY', '')
 
 # AI Agent Configuration
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', 'AQ.Ab8RN6JmEwGvOV0i5B_pwIpiP3Z292SLE0fF8on9umqmhzZ0qA')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
-# Firebase Configuration
+
+# =====================================================
+# FIREBASE CONFIGURATION
+# =====================================================
+
 import firebase_admin
 from firebase_admin import credentials
 
@@ -129,7 +141,7 @@ if not firebase_admin._apps:
     try:
         cred = credentials.ApplicationDefault()
         firebase_admin.initialize_app(cred, {
-            'projectId': 'graceful-castle-502418-c5',
+            'projectId': os.environ.get('FIREBASE_PROJECT_ID', 'graceful-castle-502418-c5'),
         })
         print("Firebase Admin SDK initialized successfully with ADC.")
     except Exception as e:

@@ -609,6 +609,15 @@
         <span class="material-symbols-outlined" style="font-size:16px">storm</span>
         Ban do thoi tiet - Windy.com
       </div>
+      
+      <!-- w3w search box -->
+      <div id="w3w-search" style="position:absolute; top: 12px; right: 12px; z-index:100; display:flex; gap: 6px; background: rgba(8, 11, 20, .88); padding: 6px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .15); backdrop-filter: blur(10px);">
+        <input type="text" id="w3w-input" placeholder="VD: #TPB-6TZH" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: white; padding: 6px 12px; font-size: 12px; outline: none; width: 160px; font-family: monospace;">
+        <button onclick="search3Words()" style="background: rgba(249, 115, 22, 0.2); border: 1px solid rgba(249, 115, 22, 0.5); color: #fb923c; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; font-weight: bold; transition: all 0.2s;">
+          Tìm
+        </button>
+      </div>
+
       <iframe id="windy-iframe"
         src="https://embed.windy.com/embed2.html?lat=13.85&lon=108.35&detailLat=13.85&detailLon=108.35&zoom=8&level=surface&overlay=wind&product=ecmwf&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1&lang=vi"
         allow="geolocation" loading="lazy" onload="document.getElementById('windy-loading').classList.add('hidden')">
@@ -900,6 +909,43 @@
   var WINDY_BASE = 'https://embed.windy.com/embed2.html?lat=13.85&lon=108.35&zoom=8&level=surface&product=ecmwf&menu=&message=true&marker=true&lang=vi&metricWind=km%2Fh&metricTemp=%C2%B0C';
   function switchLayer(l, b) { document.querySelectorAll('.layer-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); document.getElementById('windy-loading').classList.remove('hidden'); document.getElementById('windy-iframe').src = WINDY_BASE + '&overlay=' + l; }
   document.getElementById('windy-iframe').addEventListener('load', () => document.getElementById('windy-loading').classList.add('hidden'));
+  
+  async function search3Words() {
+    var words = document.getElementById('w3w-input').value.trim();
+    if (!words) return;
+    try {
+      var btn = document.querySelector('#w3w-search button');
+      btn.textContent = '...';
+      var r = await fetch('/api/3wa-to-coordinates/?words=' + encodeURIComponent(words));
+      var d = await r.json();
+      btn.textContent = 'Tìm';
+      
+      if (d.success && d.data && d.data.coordinates) {
+        var lat = d.data.coordinates.lat;
+        var lon = d.data.coordinates.lng;
+        document.getElementById('windy-loading').classList.remove('hidden');
+        WINDY_BASE = 'https://embed.windy.com/embed2.html?lat=' + lat + '&lon=' + lon + '&detailLat=' + lat + '&detailLon=' + lon + '&zoom=14&level=surface&product=ecmwf&menu=&message=true&marker=true&lang=vi&metricWind=km%2Fh&metricTemp=%C2%B0C';
+        
+        var currentLayer = 'wind';
+        var activeBtn = document.querySelector('.layer-btn.active');
+        if (activeBtn) {
+            if (activeBtn.textContent.includes('Gio')) currentLayer = 'wind';
+            else if (activeBtn.textContent.includes('Mua')) currentLayer = 'rain';
+            else if (activeBtn.textContent.includes('Nhiet do')) currentLayer = 'temp';
+            else if (activeBtn.textContent.includes('May')) currentLayer = 'clouds';
+            else if (activeBtn.textContent.includes('Sam set')) currentLayer = 'thunder';
+            else if (activeBtn.textContent.includes('Song bien')) currentLayer = 'waves';
+        }
+        
+        document.getElementById('windy-iframe').src = WINDY_BASE + '&overlay=' + currentLayer;
+      } else {
+        alert(d.error || 'Không tìm thấy vị trí cho 3 từ này.');
+      }
+    } catch (e) {
+      alert('Lỗi kết nối khi tìm kiếm 3 từ.');
+    }
+  }
+
   function updateClock() { var el = document.getElementById('current-time'); if (el) el.textContent = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
   setInterval(updateClock, 1000); updateClock();
   function toggleAcc(id) { document.getElementById(id).classList.toggle('open'); }

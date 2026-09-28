@@ -130,6 +130,23 @@ Trung tâm điều phối cứu hộ
             </span>
         </a>
 
+        <!-- Nút Nhiệm vụ Hệ thống -->
+        <a href="{% url 'portal:system_tasks' %}"
+           class="flex items-center gap-2
+                  px-4 py-2 rounded-full
+                  bg-purple-500/10 border border-purple-500/20
+                  hover:bg-purple-500/20 hover:border-purple-500/40
+                  transition-all">
+
+            <span class="material-symbols-outlined text-purple-400 text-sm">
+                memory
+            </span>
+
+            <span class="text-xs font-medium text-purple-400 hidden sm:block">
+                Hệ thống
+            </span>
+        </a>
+
 
         <div class="flex items-center gap-2
                     px-3 py-2 bg-red-500/10
@@ -1484,12 +1501,12 @@ Trung tâm điều phối cứu hộ
 
         rescueMap = L.map('rescueMap');
 
-        // OpenStreetMap tile — hợp lệ với lãnh thổ Việt Nam
+        // Google Maps tile
         L.tileLayer(
-            'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://mt1.google.com/vt/lyrs=m&hl=vi&x={x}&y={y}&z={z}',
             {
                 maxZoom: 19,
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                attribution: '&copy; Google Maps'
             }
         ).addTo(rescueMap);
     }

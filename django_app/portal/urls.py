@@ -139,6 +139,30 @@ urlpatterns = [
     ),
 
     # =================================================
+    # NHIỆM VỤ HỆ THỐNG & AUTO-FIX
+    # =================================================
+    path(
+        'system-tasks/',
+        firebase_views.system_tasks_page,
+        name='system_tasks'
+    ),
+    path(
+        'api/system-tasks/',
+        firebase_views.api_get_system_tasks,
+        name='api_system_tasks'
+    ),
+    path(
+        'api/system-tasks/<str:task_id>/autofix/',
+        firebase_views.api_autofix_task,
+        name='api_autofix_task'
+    ),
+    path(
+        'api/system-tasks/mock/',
+        firebase_views.api_mock_error,
+        name='api_mock_error'
+    ),
+
+    # =================================================
     # MODULE CẢNH BÁO BÃO & HƯỚNG DẪN AN TOÀN
     # =================================================
     path(

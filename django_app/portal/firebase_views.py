@@ -136,10 +136,20 @@ def admin_dashboard(request):
             'report': {'id': i.id, 'victim_name': victim_name},
             'station': assigned_station if assigned_station else {'name': ''},
         })
-
+    active_incidents = [i for i in incidents if i.get('status') in ['pending', 'assigned', 'on_the_way']]
+    
     # Sort
     priority = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1}
-    recent_requests = sorted(incidents, key=lambda x: (priority.get(x.get('emergency_level', 'medium'), 0), x['timestamp_val']), reverse=True)[:20]
+    status_priority = {'pending': 2, 'assigned': 1, 'on_the_way': 1, 'completed': 0, 'cancelled': 0}
+    recent_requests = sorted(
+        active_incidents, 
+        key=lambda x: (
+            status_priority.get(x.get('status', 'pending'), 0), 
+            priority.get(x.get('emergency_level', 'medium'), 0), 
+            x['timestamp_val']
+        ), 
+        reverse=True
+    )[:20]
     
     logs = [i for i in incidents if i.get('assigned_at') and isinstance(i['assigned_at'], datetime)]
     recent_logs = sorted(logs, key=lambda x: x['assigned_at'], reverse=True)[:10]
@@ -706,3 +716,91 @@ def api_firebase_map_data(request):
         }
     })
 
+# =====================================================
+# NHIỆM VỤ HỆ THỐNG & TỰ ĐỘNG SỬA LỖI (SYSTEM TASKS)
+# =====================================================
+
+def system_tasks_page(request):
+    """Trang Ghi nhận lỗi và Tự động sửa lỗi (System Tasks)."""
+    return render(request, 'portal/system_tasks.html')
+
+@require_http_methods(['GET'])
+def api_get_system_tasks(request):
+    """Lấy danh sách các system tasks từ Firebase."""
+    db = get_db()
+    tasks_ref = db.collection('system_tasks').order_by('created_at', direction=firestore.Query.DESCENDING).limit(50).stream()
+    
+    tasks = []
+    for t in tasks_ref:
+        data = t.to_dict()
+        data['id'] = t.id
+        if 'created_at' in data and isinstance(data['created_at'], datetime):
+            data['created_at_display'] = data['created_at'].strftime('%d/%m/%Y %H:%M')
+        else:
+            data['created_at_display'] = ''
+        tasks.append(data)
+        
+    return JsonResponse({'success': True, 'data': tasks})
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_autofix_task(request, task_id):
+    """Giả lập quy trình Auto-Fix cho một task."""
+    db = get_db()
+    doc_ref = db.collection('system_tasks').document(str(task_id))
+    doc = doc_ref.get()
+    
+    if not doc.exists:
+        return JsonResponse({'success': False, 'error': 'Không tìm thấy lỗi này'})
+        
+    # Cập nhật trạng thái thành đang sửa
+    doc_ref.update({'status': 'auto_fixing'})
+    
+    import time
+    time.sleep(1) # Giả lập thời gian chạy thuật toán sửa lỗi
+    
+    # Giả lập tỷ lệ sửa thành công 85%
+    import random
+    success = random.random() < 0.85
+    
+    if success:
+        new_status = 'fixed'
+        message = 'Hệ thống đã tự động khắc phục thành công.'
+    else:
+        new_status = 'failed'
+        message = 'Tự động sửa thất bại. Cần can thiệp thủ công.'
+        
+    doc_ref.update({
+        'status': new_status,
+        'auto_fix_log': message,
+        'resolved_at': datetime.now()
+    })
+    
+    return JsonResponse({'success': True, 'new_status': new_status, 'message': message})
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_mock_error(request):
+    """Tạo một lỗi giả lập để test Auto-Fix."""
+    db = get_db()
+    
+    error_types = [
+        {'type': 'ASTAR_NO_STATION', 'desc': 'Thuật toán A* thất bại vì không tìm thấy trạm sẵn sàng trong bán kính 10km.'},
+        {'type': 'API_TIMEOUT', 'desc': 'Kết nối đến API Thời tiết Windy bị quá hạn. Dữ liệu thời tiết không thể đồng bộ.'},
+        {'type': 'DATA_MALFORMED', 'desc': 'Tọa độ GPS nhận được từ thiết bị di động của nạn nhân bị sai định dạng.'},
+        {'type': 'NOTIFICATION_FAILED', 'desc': 'Không thể đẩy thông báo (Push Notification) đến máy của điều phối viên.'}
+    ]
+    import random
+    err = random.choice(error_types)
+    
+    new_task = {
+        'error_type': err['type'],
+        'description': err['desc'],
+        'status': 'pending',
+        'created_at': datetime.now(),
+        'auto_fix_log': ''
+    }
+    
+    _, doc_ref = db.collection('system_tasks').add(new_task)
+    
+    return JsonResponse({'success': True, 'message': 'Đã tạo một lỗi hệ thống giả lập'})

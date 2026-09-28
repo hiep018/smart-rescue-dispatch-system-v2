@@ -242,7 +242,18 @@ def admin_dashboard(request):
     active_requests = VictimReport.objects.filter(status__in=['assigned', 'on_the_way']).count()
     completed_today = VictimReport.objects.filter(status='completed', updated_at__date=today).count()
 
-    recent_requests = VictimReport.objects.select_related('assigned_station').order_by('-created_at')[:20]
+    from django.db.models import Case, When, Value, IntegerField
+    recent_requests = VictimReport.objects.select_related('assigned_station').filter(
+        status__in=['pending', 'assigned', 'on_the_way']
+    ).annotate(
+        status_priority=Case(
+            When(status='pending', then=Value(2)),
+            When(status__in=['assigned', 'on_the_way'], then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField()
+        )
+    ).order_by('-status_priority', '-created_at')[:20]
+    
     recent_logs = RescueLog.objects.select_related('report', 'station').order_by('-assigned_at')[:20]
     stations = RescueStation.objects.all().order_by('station_code')
 
@@ -1063,6 +1074,123 @@ def api_weather_current(request):
         f'https://api.open-meteo.com/v1/forecast'
         f'?latitude={lat}&longitude={lon}'
         f'&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,wind_direction_10m,weather_code'
+        f'&wind_speed_unit=kmh&timezone=Asia%2FHo_Chi_Minh'
+    )
+
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'SmartRescueSystem/1.0'})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            weather_data = json.loads(resp.read().decode('utf-8'))
+
+        current = weather_data.get('current', {})
+        wind_speed = current.get('wind_speed_10m', 0)
+        precipitation = current.get('precipitation', 0)
+        weather_code = current.get('weather_code', 0)
+
+        # Đánh giá mức độ nguy hiểm tự động
+        auto_level = None
+        auto_message = None
+        if wind_speed >= 90:
+            auto_level = 'emergency'
+            auto_message = f'⚠️ Gió rất mạnh {wind_speed:.0f} km/h — Nguy hiểm tính mạng!'
+        elif wind_speed >= 60:
+            auto_level = 'warning'
+            auto_message = f'⚠️ Gió mạnh {wind_speed:.0f} km/h — Cần đề phòng'
+        elif wind_speed >= 40 or precipitation >= 20:
+            auto_level = 'watch'
+            auto_message = f'Theo dõi: gió {wind_speed:.0f} km/h, mưa {precipitation:.1f} mm/h'
+
+        return JsonResponse({
+            'success': True,
+            'lat': lat,
+            'lon': lon,
+            'temperature': current.get('temperature_2m'),
+            'humidity': current.get('relative_humidity_2m'),
+            'wind_speed_kmh': wind_speed,
+            'wind_direction': current.get('wind_direction_10m'),
+            'precipitation_mm': precipitation,
+            'weather_code': weather_code,
+            'auto_level': auto_level,
+            'auto_message': auto_message,
+            'updated_at': current.get('time', ''),
+        })
+
+    except urllib.error.URLError as e:
+        return JsonResponse({'success': False, 'error': f'Không thể kết nối Open-Meteo: {str(e)}'}, status=503)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+# =====================================================
+# MODULE CẢNH BÁO BÃO & HƯỚNG DẪN AN TOÀN
+# =====================================================
+
+def storm_warning_page(request):
+    """
+    Render trang cảnh báo bão và hướng dẫn an toàn.
+    Truyền danh sách cảnh báo đang hiệu lực vào template.
+    """
+    from django.utils import timezone as tz
+
+    now = tz.now()
+    active_alerts = StormAlert.objects.filter(
+        is_active=True
+    ).filter(
+        Q(expires_at__isnull=True) | Q(expires_at__gt=now)
+    ).order_by('-created_at')
+
+    return render(request, 'portal/storm_warning.html', {
+        'active_alerts': active_alerts,
+    })
+
+
+def api_storm_alerts(request):
+    """
+    API trả JSON danh sách cảnh báo bão đang hiệu lực.
+    GET /api/storm/alerts/
+    """
+    from django.utils import timezone as tz
+
+    now = tz.now()
+    alerts = StormAlert.objects.filter(
+        is_active=True
+    ).filter(
+        Q(expires_at__isnull=True) | Q(expires_at__gt=now)
+    ).order_by('-created_at')
+
+    data = []
+    for a in alerts:
+        data.append({
+            'id': a.pk,
+            'title': a.title,
+            'level': a.level,
+            'level_display': a.get_level_display(),
+            'affected_area': a.affected_area,
+            'description': a.description,
+            'source': a.source,
+            'created_at': a.created_at.strftime('%d/%m/%Y %H:%M'),
+            'expires_at': a.expires_at.strftime('%d/%m %H:%M') if a.expires_at else None,
+        })
+
+    return JsonResponse({'success': True, 'count': len(data), 'alerts': data})
+
+
+def api_weather_current(request):
+    """
+    API lấy thời tiết hiện tại từ Open-Meteo (miễn phí, không cần API key).
+    GET /api/weather/current/?lat=13.85&lon=108.35
+    """
+    try:
+        lat = float(request.GET.get('lat', 13.85))
+        lon = float(request.GET.get('lon', 108.35))
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'lat/lon không hợp lệ'}, status=400)
+
+    url = (
+        f'https://api.open-meteo.com/v1/forecast'
+        f'?latitude={lat}&longitude={lon}'
+        f'&current=temperature_2m,relative_humidity_2m,wind_speed_10m,'
+        f'wind_direction_10m,precipitation,weather_code'
         f'&wind_speed_unit=kmh&timezone=Asia%2FHo_Chi_Minh'
     )
 

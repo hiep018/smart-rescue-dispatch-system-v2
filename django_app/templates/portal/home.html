@@ -498,7 +498,7 @@
         </p>
         <input id="words-input"
                type="text"
-               placeholder="Ví dụ: #tây.vị.sẻ"
+               placeholder="Ví dụ: #TPB-6TZH"
                autocomplete="off"
                spellcheck="false" />
         <div class="flex gap-2">
@@ -592,7 +592,6 @@ let currentLng   = null;
 let currentAccuracy = null;
 let currentSource = 'gps';        // 'gps' | 'three_words' | 'map'
 let current3wa   = '';
-let current3wa   = '';
 
 // Leaflet layers
 let gpsMarker    = null;
@@ -615,10 +614,10 @@ const map = L.map('rescue-map', {
 // Nút zoom — đặt góc dưới phải để tránh thanh công cụ
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-// Tile OpenStreetMap
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+// Tile Google Maps
+L.tileLayer('https://mt1.google.com/vt/lyrs=m&hl=vi&x={x}&y={y}&z={z}', {
   maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  attribution: '&copy; Google Maps',
 }).addTo(map);
 
 

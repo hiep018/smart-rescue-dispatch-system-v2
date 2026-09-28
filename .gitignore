@@ -8,3 +8,19 @@ env/
 .env
 db.sqlite3
 *.log
+
+# Sensitive files - KHÔNG push lên GitHub
+google-services.json
+*.pkl
+gcloud.zip
+gcloud_sdk/
+
+# IDE
+.vscode/
+.idea/
+
+# Media uploads (ảnh người dùng tải lên)
+django_app/media/
+
+# Static collected
+django_app/staticfiles/
