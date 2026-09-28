@@ -1,0 +1,17 @@
+# Requirements cho Deploy (PythonAnywhere)
+# Bỏ các thư viện nặng không cần cho web portal
+
+# Django Framework
+Django>=4.2,<5.0
+
+# Image Processing (nhẹ)
+Pillow>=10.0.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Static files serving
+whitenoise>=6.5.0
+
+# Firebase
+firebase-admin>=6.0.0
