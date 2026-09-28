@@ -3,8 +3,12 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
-import cv2
-import numpy as np
+try:
+    import cv2
+    import numpy as np
+except ImportError:
+    cv2 = None
+    np = None
 
 from django.db import transaction
 from django.db.models import Avg, Q
